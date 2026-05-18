@@ -131,6 +131,35 @@ export function getCollectorQueueSize() {
   return loadCollectorQueue().length;
 }
 
+export function isCollectorConfigured() {
+  return Boolean(collectorUrl);
+}
+
+export function getCollectorUrlHint() {
+  if (!collectorUrl) return "";
+  try {
+    const url = new URL(collectorUrl);
+    return `${url.hostname}${url.pathname.slice(0, 24)}...`;
+  } catch {
+    return "configured";
+  }
+}
+
+export function sendCollectorDebugRecord() {
+  const id = createId("debug");
+  enqueueCollectorRecord("event", id, {
+    id,
+    session_id: getSessionId(),
+    event_name: "debug_collector_test",
+    event_payload: {
+      source: "metrics_debug",
+      page: window.location.href,
+      user_agent: navigator.userAgent,
+    },
+    created_at: new Date().toISOString(),
+  });
+}
+
 function enqueueCollectorRecord(kind: CollectorRecordKind, id: string, payload: Record<string, unknown>) {
   const record: CollectorRecord = {
     id: `${kind}_${id}_${Date.now()}`,

@@ -14,6 +14,9 @@ import {
 import { computeProfile, getBouquetHardNo, getPublicPayload } from "./scoring";
 import {
   flushCollectorQueue,
+  getCollectorQueueSize,
+  getCollectorUrlHint,
+  isCollectorConfigured,
   loadAnswers,
   loadFlowerRequest,
   loadStep,
@@ -23,6 +26,7 @@ import {
   saveFlowerRequest,
   saveStep,
   saveSubmission,
+  sendCollectorDebugRecord,
   track,
 } from "./storage";
 import type { Answers, ComputedProfile, FlowerRequest, FlowerReaction, FlowerSubmission, Option, Reaction } from "./types";
@@ -96,6 +100,7 @@ export default function App() {
     return <LandingPage navigate={navigate} startQuiz={() => setQuizActive(true)} key={routeKey} />;
   }
   if (path === "/request") return <RequestPage navigate={navigate} />;
+  if (path === "/metrics-debug") return <MetricsDebugPage navigate={navigate} />;
   if (path.startsWith("/r/")) return <RecipientRequestPage requestId={decodeURIComponent(path.split("/r/")[1] || "")} navigate={navigate} />;
   if (path.startsWith("/result/")) return <StoredResultPage submissionId={decodeURIComponent(path.split("/result/")[1] || "")} navigate={navigate} />;
   if (path === "/" && quizActive) return <QuizApp navigate={navigate} onExit={() => setQuizActive(false)} />;
@@ -569,6 +574,51 @@ function EmptyState({ title, text, action, onAction }: { title: string; text: st
           <h1>{title}</h1>
           <p className="lead">{text}</p>
           <button className="primary-button" onClick={onAction}>{action}</button>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function MetricsDebugPage({ navigate }: { navigate: (url: string) => void }) {
+  const [queueSize, setQueueSize] = useState(() => getCollectorQueueSize());
+  const [message, setMessage] = useState("");
+  const configured = isCollectorConfigured();
+
+  const refresh = () => setQueueSize(getCollectorQueueSize());
+  const sendTest = () => {
+    sendCollectorDebugRecord();
+    flushCollectorQueue();
+    setMessage("Тестовая запись поставлена в очередь. Через несколько секунд проверьте лист events.");
+    window.setTimeout(refresh, 800);
+    window.setTimeout(refresh, 2500);
+  };
+
+  return (
+    <main className="app-shell">
+      <section className="quiz-frame">
+        <Header step={0} progress={0} onBack={() => navigate("/")} />
+        <section className="screen">
+          <p className="eyebrow">Диагностика</p>
+          <h1>Сбор метрик</h1>
+          <div className="result-grid">
+            <ResultBlock title="Collector URL" items={[configured ? `Подключен: ${getCollectorUrlHint()}` : "Не подключен"]} />
+            <ResultBlock title="Очередь" items={[`${queueSize} записей`]} />
+          </div>
+          <div className="action-stack">
+            <button className="primary-button" onClick={sendTest} disabled={!configured}>Отправить тестовую запись</button>
+            <button className="secondary-button" onClick={() => {
+              flushCollectorQueue();
+              window.setTimeout(refresh, 800);
+            }}>Повторить отправку очереди</button>
+            <button className="text-button" onClick={() => navigate("/")}>На главную</button>
+          </div>
+          {message && <p className="hint">{message}</p>}
+          {!configured && (
+            <p className="hint">
+              В Vercel нужно добавить переменную VITE_FLOWER_COLLECTOR_URL и сделать redeploy.
+            </p>
+          )}
         </section>
       </section>
     </main>
