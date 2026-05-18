@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   bouquetCards,
   moods,
   packagingOptions,
+  packagingStopOptions,
   palettes,
   totalSteps,
 } from "./data";
@@ -28,7 +30,7 @@ import {
   startEditingSubmission,
   track,
 } from "./storage";
-import type { Answers, ComputedProfile, FlowerRequest, FlowerReaction, FlowerSubmission, Option, Reaction } from "./types";
+import type { Answers, ArchetypeId, ComputedProfile, FlowerRequest, FlowerReaction, FlowerSubmission, Option, Reaction } from "./types";
 
 const defaultAnswers: Answers = {
   bouquet_swipes: [],
@@ -468,8 +470,8 @@ function StoredResultPage({ submissionId, navigate }: { submissionId: string; na
     return (
       <EmptyState
         title="Flower ID не найден"
-        text="Создайте свой Flower ID или проверьте ссылку."
-        action="Создать свой Flower ID"
+        text="Возможно, ссылка устарела или была скопирована не полностью."
+        action="Создать новый Flower ID"
         onAction={() => navigate("/")}
       />
     );
@@ -478,7 +480,6 @@ function StoredResultPage({ submissionId, navigate }: { submissionId: string; na
   return (
     <main className="app-shell">
       <section className="quiz-frame">
-        <Header step={8} onBack={() => navigate("/")} />
         <ResultScreen
           answers={submission.answers}
           profile={submission.computed_profile}
@@ -1271,6 +1272,239 @@ function LoadingScreen({ message }: { message: string }) {
   );
 }
 
+type ArchetypeVisual = {
+  title: string;
+  description: string;
+  image?: string;
+  spriteIndex: number;
+};
+
+type ArchetypeResultDefault = {
+  name: string;
+  description: string;
+  tags: string[];
+  palette: Array<{ name: string; color: string }>;
+  flowers: string[];
+  avoid: string[];
+  scent: string;
+  packaging: string;
+  ideal: string;
+  visuals: ArchetypeVisual[];
+};
+
+const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
+  garden_romance: {
+    name: "Romantic Muse",
+    description: "Нежный, живой и романтичный стиль с ощущением сада и мягкой заботы.",
+    tags: ["нежно", "садово", "воздушно", "романтично"],
+    palette: [
+      { name: "пудровый", color: "#e8b9c5" },
+      { name: "кремовый", color: "#fff1dd" },
+      { name: "светлая зелень", color: "#cfe4bd" },
+      { name: "розовый", color: "#f4b6c8" },
+    ],
+    flowers: ["Пионы", "Ранункулюсы", "Пионовидные розы", "Анемоны", "Фрезии"],
+    avoid: ["Слишком яркие букеты", "Много упаковки"],
+    scent: "лёгкий или нейтральный",
+    packaging: "мягкая, натуральная, без лишнего декора",
+    ideal: "Воздушная композиция в молочно-пудровой гамме с ранункулюсами, пионами и лёгкой зеленью.",
+    visuals: [
+      { title: "Нежный", description: "Мягкая палитра, лёгкая форма, минимум упаковки", spriteIndex: 0 },
+      { title: "Премиальный", description: "Больше объёма, редкие цветы, тихая роскошь", spriteIndex: 4 },
+      { title: "Необычный", description: "Тот же стиль, но с арт-акцентом", spriteIndex: 10 },
+    ],
+  },
+  white_green_minimalism: {
+    name: "Soft Minimalist",
+    description: "Чистый, свежий и элегантный стиль без лишней декоративности.",
+    tags: ["чисто", "свежо", "воздушно", "минималистично"],
+    palette: [
+      { name: "молочный", color: "#ffffff" },
+      { name: "айвори", color: "#f4ecd7" },
+      { name: "шалфейный", color: "#aebf9b" },
+      { name: "эвкалипт", color: "#6c957d" },
+    ],
+    flowers: ["Анемоны", "Каллы", "Ранункулюсы", "Фрезии", "Тюльпаны"],
+    avoid: ["Блёстки", "Пёстрые букеты", "Глянцевая упаковка"],
+    scent: "нейтральный или очень лёгкий",
+    packaging: "минималистичная, без лишнего декора",
+    ideal: "Чистая бело-зелёная композиция с лёгкой формой, спокойной зеленью и аккуратной упаковкой.",
+    visuals: [
+      { title: "Нежный", description: "Молочный, шалфейный, мягкая форма", spriteIndex: 1 },
+      { title: "Премиальный", description: "Белая гамма, редкие цветы, тихая роскошь", spriteIndex: 7 },
+      { title: "Необычный", description: "Минимализм с графичным акцентом", spriteIndex: 10 },
+    ],
+  },
+  dramatic_elegance: {
+    name: "Bold Drama",
+    description: "Глубокий, вечерний и выразительный стиль с сильным характером.",
+    tags: ["глубоко", "элегантно", "вечерне", "выразительно"],
+    palette: [
+      { name: "бордо", color: "#7a1531" },
+      { name: "сливовый", color: "#63305f" },
+      { name: "темная вишня", color: "#4d0b1d" },
+      { name: "пудровый", color: "#ddb7c2" },
+    ],
+    flowers: ["Каллы", "Орхидеи", "Анемоны", "Пионовидные розы"],
+    avoid: ["Слишком простые букеты", "Случайные яркие миксы"],
+    scent: "умеренный, без резкости",
+    packaging: "сдержанная, глубоких оттенков",
+    ideal: "Выразительный букет в винно-ягодной гамме с крупной формой и элегантной подачей.",
+    visuals: [
+      { title: "Драма", description: "Винные оттенки и вечерний объём", spriteIndex: 3 },
+      { title: "Премиальный", description: "Глубокая палитра и крупные акценты", spriteIndex: 8 },
+      { title: "Графичный", description: "Контраст и архитектурная форма", spriteIndex: 6 },
+    ],
+  },
+  sunny_joy: {
+    name: "Sunny Energy",
+    description: "Тёплый, радостный и живой стиль, который сразу поднимает настроение.",
+    tags: ["ярко", "радостно", "тепло", "сочно"],
+    palette: [
+      { name: "желтый", color: "#ffd43b" },
+      { name: "оранжевый", color: "#ff8a3d" },
+      { name: "коралл", color: "#ff6f61" },
+      { name: "розовый", color: "#ee9aac" },
+    ],
+    flowers: ["Тюльпаны", "Герберы", "Полевые цветы", "Гортензии"],
+    avoid: ["Слишком строгие букеты", "Мрачные оттенки"],
+    scent: "лёгкий, свежий",
+    packaging: "простая, чтобы не спорить с цветом",
+    ideal: "Светлый сезонный микс в тёплых оттенках с ощущением праздника и живой энергии.",
+    visuals: [
+      { title: "Солнечный", description: "Жёлтый, коралл, летний микс", spriteIndex: 2 },
+      { title: "Праздничный", description: "Больше цвета и заметный объём", spriteIndex: 8 },
+      { title: "Натуральный", description: "Яркость через сезонные цветы", spriteIndex: 5 },
+    ],
+  },
+  wild_garden: {
+    name: "Wild Natural",
+    description: "Свободный природный стиль, будто букет собран в красивом саду.",
+    tags: ["природно", "живо", "свободно", "небрежно"],
+    palette: [
+      { name: "оливковый", color: "#758a4c" },
+      { name: "песочный", color: "#e2c991" },
+      { name: "ромашковый", color: "#fff7b8" },
+      { name: "небо", color: "#8bb7cf" },
+    ],
+    flowers: ["Полевые цветы", "Ромашки", "Астильба", "Эвкалипт", "Сирень"],
+    avoid: ["Слишком глянцевую упаковку", "Искусственный декор"],
+    scent: "свежий, натуральный",
+    packaging: "крафт или натуральная",
+    ideal: "Свободный букет с полевыми фактурами, зеленью и ощущением естественного движения.",
+    visuals: [
+      { title: "Природный", description: "Свободная форма и садовые фактуры", spriteIndex: 5 },
+      { title: "Тёплый", description: "Крафт, зелень и сезонные оттенки", spriteIndex: 0 },
+      { title: "Артистичный", description: "Асимметрия без лишней нарядности", spriteIndex: 10 },
+    ],
+  },
+  art_experiment: {
+    name: "Art Lover",
+    description: "Необычный, дизайнерский и немного архитектурный стиль.",
+    tags: ["арт", "необычно", "графично", "смело"],
+    palette: [
+      { name: "фиолетовый", color: "#7443a8" },
+      { name: "лайм", color: "#c7e84b" },
+      { name: "темный", color: "#252833" },
+      { name: "контраст", color: "#ffffff" },
+    ],
+    flowers: ["Орхидеи", "Антуриумы", "Каллы", "Протея"],
+    avoid: ["Слишком шаблонные букеты", "Банальную классику"],
+    scent: "нейтральный, чтобы форма была главной",
+    packaging: "лаконичная, дизайнерская",
+    ideal: "Архитектурная композиция с необычным цветком, чистой линией и смелым акцентом.",
+    visuals: [
+      { title: "Необычный", description: "Орхидеи, графика и контраст", spriteIndex: 6 },
+      { title: "Скульптурный", description: "Асимметрия и дизайнерская форма", spriteIndex: 10 },
+      { title: "Премиальный", description: "Редкие цветы без лишнего декора", spriteIndex: 7 },
+    ],
+  },
+  quiet_luxury: {
+    name: "Quiet Luxury",
+    description: "Дорогой, спокойный и очень собранный стиль без демонстративности.",
+    tags: ["дорого", "сдержанно", "мягко", "элегантно"],
+    palette: [
+      { name: "айвори", color: "#f6edd7" },
+      { name: "шампань", color: "#d8d2bb" },
+      { name: "шалфейный", color: "#879d83" },
+      { name: "молочный", color: "#fffaf6" },
+    ],
+    flowers: ["Каллы", "Орхидеи", "Ранункулюсы", "Пионовидные розы"],
+    avoid: ["Кислотные оттенки", "Блёстки", "Слишком много упаковки"],
+    scent: "лёгкий или нейтральный",
+    packaging: "премиальная и сдержанная",
+    ideal: "Спокойная композиция в айвори-шампань гамме с дорогой фактурой и чистой подачей.",
+    visuals: [
+      { title: "Тихая роскошь", description: "Айвори, шампань, мягкий объём", spriteIndex: 7 },
+      { title: "Чистый", description: "Бело-зелёная свежесть", spriteIndex: 1 },
+      { title: "Вечерний", description: "Глубже, но всё ещё сдержанно", spriteIndex: 3 },
+    ],
+  },
+  classic_femininity: {
+    name: "Classic Grace",
+    description: "Понятный, женственный и гармоничный стиль, который выглядит уместно всегда.",
+    tags: ["классика", "мягко", "гармонично", "женственно"],
+    palette: [
+      { name: "розовый", color: "#fac9d1" },
+      { name: "кремовый", color: "#f8ead4" },
+      { name: "зелень", color: "#9fbf92" },
+      { name: "пудровый", color: "#e9aabc" },
+    ],
+    flowers: ["Пионовидные розы", "Гортензии", "Пионы", "Тюльпаны"],
+    avoid: ["Слишком странные формы", "Жёсткие контрасты"],
+    scent: "мягкий, без навязчивости",
+    packaging: "романтичная или аккуратная",
+    ideal: "Округлый гармоничный букет в розово-кремовой гамме с мягкой зеленью и понятной красотой.",
+    visuals: [
+      { title: "Классический", description: "Округлая форма и мягкая палитра", spriteIndex: 11 },
+      { title: "Романтичный", description: "Пионы и пудровые оттенки", spriteIndex: 4 },
+      { title: "Премиальный", description: "Больше объёма и дорогой фактуры", spriteIndex: 7 },
+    ],
+  },
+  paris_morning: {
+    name: "Paris Morning",
+    description: "Лёгкий, свежий и стильный букет с ощущением красивого утра.",
+    tags: ["лёгко", "свежо", "небрежно", "стильно"],
+    palette: [
+      { name: "молочный", color: "#fff4d6" },
+      { name: "лиловый", color: "#c7a7dd" },
+      { name: "пудровый", color: "#e3adc4" },
+      { name: "серо-зеленый", color: "#9fb7aa" },
+    ],
+    flowers: ["Тюльпаны", "Анемоны", "Ранункулюсы", "Фрезии"],
+    avoid: ["Тяжёлые букеты", "Слишком торжественную упаковку"],
+    scent: "лёгкий",
+    packaging: "минималистичная или натуральная",
+    ideal: "Лёгкий букет с тюльпанами, анемонами и мягкими пастельными оттенками.",
+    visuals: [
+      { title: "Утренний", description: "Тюльпаны, воздух и пастель", spriteIndex: 9 },
+      { title: "Нежный", description: "Лёгкая форма и мягкие оттенки", spriteIndex: 0 },
+      { title: "Графичный", description: "Анемоны как тонкий акцент", spriteIndex: 10 },
+    ],
+  },
+  evening_wow: {
+    name: "Evening Wow",
+    description: "Масштабный, заметный и праздничный стиль для сильного впечатления.",
+    tags: ["вау", "объёмно", "ярко", "празднично"],
+    palette: [
+      { name: "насыщенный розовый", color: "#d33f6a" },
+      { name: "красный", color: "#7b1637" },
+      { name: "фуксия", color: "#e6538f" },
+      { name: "пудровый", color: "#ffabc4" },
+    ],
+    flowers: ["Пионовидные розы", "Гортензии", "Орхидеи", "Каллы"],
+    avoid: ["Слишком маленькие букеты", "Скучную упаковку"],
+    scent: "умеренный",
+    packaging: "премиальная, но не перегруженная",
+    ideal: "Большой вау-букет с выразительной палитрой, объёмом и аккуратной праздничной подачей.",
+    visuals: [
+      { title: "Вау", description: "Масштаб и насыщенный цвет", spriteIndex: 8 },
+      { title: "Драма", description: "Вечерний характер и глубина", spriteIndex: 3 },
+      { title: "Праздник", description: "Яркий микс без хаоса", spriteIndex: 2 },
+    ],
+  },
+};
+
 function ResultScreen({
   answers,
   profile,
@@ -1295,14 +1529,18 @@ function ResultScreen({
   const publicLink = createPublicLink(answers, profile, submissionId);
   const referralLink = `${publicLink}?ref=${submissionId}`;
   const hardNo = getBouquetHardNo(answers);
-  const name = answers.user.name || "получателя";
+  const name = answers.user.name || "Получатель";
   const isShared = context === "shared";
+  const resultView = isShared ? "publicView" : "ownerView";
+  const defaults = archetypeResultDefaults[profile.primary_archetype];
+  const resultData = getResultData(answers, profile, hardNo);
   const copyText = `${profile.share_text}\nFlower ID:\n${publicLink}`;
   const orderMessage = buildOrderMessage(answers, profile, publicLink, requestId);
+  const resultUrl = submissionId ? `${window.location.origin}/result/${submissionId}` : window.location.href;
 
   const copy = async (text: string, eventName: string) => {
     await navigator.clipboard.writeText(text);
-    track(eventName, { submissionId, primary_archetype: profile.primary_archetype });
+    track(eventName, { submissionId, archetype: profile.primary_archetype, view: resultView });
     onToast("Скопировано");
   };
 
@@ -1312,59 +1550,395 @@ function ResultScreen({
       : `Вот мой Flower ID. Здесь мой стиль, палитра и подсказки, что лучше не дарить: ${referralLink}`;
     if (navigator.share) {
       await navigator.share({ title: "Мой цветочный портрет", text, url: publicLink });
-      track("share_clicked", { submissionId, shareType: "web_share" });
+      track("share_clicked", { submissionId, archetype: profile.primary_archetype, view: resultView, shareType: "web_share" });
     } else {
       await copy(text, "share_clicked");
     }
   };
 
   return (
-    <section className="screen result-screen">
+    <section className="screen result-screen premium-result-screen">
+      <header className="result-brand-header">
+        <span className="brand-mark">Flower ID</span>
+        <span>для букетов без ошибок</span>
+      </header>
+
       {requestId && context === "own" && (
-        <article className="message-card">
+        <article className="message-card result-ready-note">
           <strong>Flower ID готов</strong>
-          <p>Теперь можно отправить его тому, кто запросил, чтобы он подобрал букет в вашем стиле.</p>
+          <p>Теперь можно отправить его тому, кто запросил, чтобы он подобрал букет в твоём стиле.</p>
         </article>
       )}
-      <p className="eyebrow">{isShared ? `Flower ID ${answers.user.name || ""}` : "Твой Flower ID"}</p>
-      {submissionId && <span className="flower-id-pill">{formatFlowerId(submissionId)}</span>}
-      <h1>{profile.title}</h1>
-      <div className={`archetype-photo archetype-${profile.primary_archetype}`} aria-label={`Визуал архетипа ${profile.title}`} />
-      <p className="lead">{profile.description}</p>
-      <div className="result-grid">
-        <ResultBlock title="Идеальные оттенки" items={profile.preferred_colors} />
-        <ResultBlock title="Ваши цветы" items={profile.favorite_flowers} fallback="Подберем по выбранному стилю" />
-        <ResultBlock title="Лучший формат" items={[profile.format]} />
-        <ResultBlock title="Лучше избегать" items={[...profile.avoid_flowers, ...profile.avoid_colors, ...hardNo]} fallback="Жесткого стоп-листа нет" />
-        <ResultBlock title="Главная эмоция" items={profile.emotion} />
-      </div>
-      <article className="share-block">
-        <h2>{isShared ? "Что можно сделать" : "Поделись своим Flower ID"}</h2>
-        <p>{isShared ? "Можно подобрать букет по этому профилю или создать собственный Flower ID." : "Отправь ссылку тому, кто дарит тебе цветы, чтобы следующий букет был точно в твоем стиле."}</p>
-        <div className="action-stack compact-actions">
-          <button className="primary-button" onClick={share}>{requestId && !isShared ? `Отправить мой Flower ID${answers.user.name ? "" : ""}` : "Отправить"}</button>
-          <button className="secondary-button" onClick={() => copy(referralLink, "copy_link_clicked")}>Скопировать ссылку</button>
-        </div>
-      </article>
-      <div className="action-stack">
-        <button className="ghost-button" onClick={() => openOrder(orderMessage, { submissionId, requestId, archetypeId: profile.primary_archetype })}>
-          {isShared ? `Подобрать букет ${answers.user.name ? `для ${answers.user.name}` : "по Flower ID"}` : "Подобрать букет по моему Flower ID"}
-        </button>
-        <button className="secondary-button" onClick={() => copy(copyText, "profile_copied")}>Скопировать мой Flower ID</button>
+
+      <ResultHero
+        name={name}
+        archetypeName={defaults.name}
+        title={isShared ? `Flower ID ${name}` : "Твой Flower ID готов"}
+        subtitle={isShared ? "Теперь ты знаешь, какие букеты ей действительно подходят." : "Теперь близким проще выбрать букет, который действительно тебе подходит."}
+        description={resultData.description}
+        tags={resultData.tags}
+        submissionId={submissionId}
+      />
+
+      <ResultActions
+        isShared={isShared}
+        name={name}
+        onShare={share}
+        onOrder={() => openOrder(orderMessage, { submissionId, requestId, archetypeId: profile.primary_archetype })}
+        onCopyLink={() => copy(resultUrl, "copy_link_clicked")}
+        onCopyProfile={() => copy(copyText, "profile_copied")}
+        onRequestAnother={() => {
+          track("request_another_clicked", { source: "result", submissionId, archetype: profile.primary_archetype, view: resultView });
+          navigate("/request");
+        }}
+        onCreateOwn={() => {
+          track("shared_result_create_own_clicked", { referrerId: submissionId, archetype: profile.primary_archetype, view: resultView });
+          navigate(`/?ref=${encodeURIComponent(submissionId)}`);
+        }}
+      />
+
+      <ArchetypeVisualReferences visuals={resultData.visuals} />
+
+      <FlowerIdProfileCard data={resultData} />
+
+      <ResultFeedback submissionId={submissionId} archetype={profile.primary_archetype} view={resultView} />
+
+      <div className="result-secondary-actions">
         {!isShared && onEdit && <button className="secondary-button" onClick={onEdit}>Редактировать Flower ID</button>}
         {!isShared && <button className="secondary-button" onClick={() => navigate("/my-flower-id")}>Мои Flower ID</button>}
-        <button className="secondary-button" onClick={() => {
-          track("request_flower_id_clicked", { source: "result", submissionId });
-          navigate("/request");
-        }}>Запросить Flower ID у другого человека</button>
-        {isShared && <button className="secondary-button" onClick={() => {
-          track("shared_result_create_own_clicked", { referrerId: submissionId });
-          navigate(`/?ref=${encodeURIComponent(submissionId)}`);
-        }}>Создать свой Flower ID</button>}
-        <button className="text-button" onClick={onRestart}>Пройти заново</button>
+        {!isShared && <button className="text-button" onClick={onRestart}>Пройти заново</button>}
       </div>
     </section>
   );
+}
+
+function ResultHero({
+  name,
+  archetypeName,
+  title,
+  subtitle,
+  description,
+  tags,
+  submissionId,
+}: {
+  name: string;
+  archetypeName: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  tags: string[];
+  submissionId: string;
+}) {
+  return (
+    <section className="result-hero-card">
+      <div className="result-hero-copy">
+        <p className="eyebrow">{title}</p>
+        {submissionId && <span className="flower-id-pill">{formatFlowerId(submissionId)}</span>}
+        <h1>{name} — {archetypeName}</h1>
+        <p className="lead">{subtitle}</p>
+        <p className="result-emotional-description">{description}</p>
+        <div className="result-style-tags" aria-label="Стиль Flower ID">
+          {tags.map((tag) => <span key={tag}>{tag}</span>)}
+        </div>
+      </div>
+      <div className="result-hero-mark" aria-hidden="true">
+        <span>Flower ID</span>
+      </div>
+    </section>
+  );
+}
+
+function ArchetypeVisualReferences({ visuals }: { visuals: ArchetypeVisual[] }) {
+  return (
+    <section className="result-section">
+      <div className="result-section-heading">
+        <p className="eyebrow">Визуальные референсы</p>
+        <h2>Как выглядит твой стиль</h2>
+      </div>
+      <div className="visual-reference-row">
+        {visuals.map((visual, index) => (
+          <article className="visual-reference-card" key={`${visual.title}-${index}`}>
+            <div className="visual-reference-image" style={visual.image ? { backgroundImage: `url(${visual.image})` } : bouquetPhotoStyle(visual.spriteIndex)} aria-hidden="true" />
+            <div>
+              <h3>{visual.title}</h3>
+              <p>{visual.description}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+      <p className="result-disclaimer">
+        Изображения показывают стиль и настроение. Финальный букет собирается флористом с учётом сезона и наличия цветов.
+      </p>
+    </section>
+  );
+}
+
+function FlowerIdProfileCard({
+  data,
+}: {
+  data: ReturnType<typeof getResultData>;
+}) {
+  return (
+    <article className="flower-id-profile-card">
+      <ProfileSection title="Твой стиль">
+        <p>{data.styleText}</p>
+        <div className="result-style-tags compact">
+          {data.tags.map((tag) => <span key={tag}>{tag}</span>)}
+        </div>
+      </ProfileSection>
+
+      <ProfileSection title="Твоя палитра">
+        <PaletteSwatches palette={data.palette} />
+      </ProfileSection>
+
+      <ProfileSection title="Тебе подойдут">
+        <ChipList items={data.flowers} fallback="Флорист подберёт цветы по выбранному стилю." />
+      </ProfileSection>
+
+      <ProfileSection title="Лучше не дарить" tone="warning">
+        <ChipList items={data.avoid} fallback="Жёсткого стоп-листа нет." />
+      </ProfileSection>
+
+      <div className="result-detail-grid">
+        <ProfileSection title="Аромат">
+          <p>{data.scent}</p>
+        </ProfileSection>
+        <ProfileSection title="Упаковка">
+          <p>{data.packaging}</p>
+        </ProfileSection>
+      </div>
+
+      <ProfileSection title="Идеальный букет" tone="ideal">
+        <p>{data.ideal}</p>
+      </ProfileSection>
+    </article>
+  );
+}
+
+function ProfileSection({
+  title,
+  tone,
+  children,
+}: {
+  title: string;
+  tone?: "warning" | "ideal";
+  children: ReactNode;
+}) {
+  return (
+    <section className={`profile-section ${tone ? `profile-section-${tone}` : ""}`}>
+      <span>{title}</span>
+      {children}
+    </section>
+  );
+}
+
+function PaletteSwatches({ palette }: { palette: Array<{ name: string; color: string }> }) {
+  return (
+    <div className="result-palette-list">
+      <div className="result-palette-dots" aria-hidden="true">
+        {palette.map((item) => <i key={`${item.name}-${item.color}`} style={{ background: item.color }} />)}
+      </div>
+      <p>{palette.map((item) => item.name).join(" · ")}</p>
+    </div>
+  );
+}
+
+function ChipList({ items, fallback }: { items: string[]; fallback: string }) {
+  const values = items.filter(Boolean).filter(unique).slice(0, 8);
+  if (!values.length) return <p>{fallback}</p>;
+  return (
+    <div className="result-chip-list">
+      {values.map((item) => <span key={item}>{item}</span>)}
+    </div>
+  );
+}
+
+function ResultActions({
+  isShared,
+  name,
+  onShare,
+  onOrder,
+  onCopyLink,
+  onCopyProfile,
+  onRequestAnother,
+  onCreateOwn,
+}: {
+  isShared: boolean;
+  name: string;
+  onShare: () => void;
+  onOrder: () => void;
+  onCopyLink: () => void;
+  onCopyProfile: () => void;
+  onRequestAnother: () => void;
+  onCreateOwn: () => void;
+}) {
+  return (
+    <section className="result-actions-panel">
+      <button className="primary-button" onClick={isShared ? onOrder : onShare}>
+        {isShared ? `Подобрать букет для ${name}` : "Поделиться моим Flower ID"}
+      </button>
+      <button className="ghost-button" onClick={isShared ? onCopyProfile : onOrder}>
+        {isShared ? "Скопировать Flower ID" : "Подобрать букет по моему Flower ID"}
+      </button>
+      <button className="secondary-button" onClick={isShared ? onCreateOwn : onRequestAnother}>
+        {isShared ? "Создать свой Flower ID" : "Узнать Flower ID другого человека →"}
+      </button>
+      <button className="text-button" onClick={onCopyLink}>Скопировать ссылку</button>
+    </section>
+  );
+}
+
+function ResultFeedback({
+  submissionId,
+  archetype,
+  view,
+}: {
+  submissionId: string;
+  archetype: ArchetypeId;
+  view: string;
+}) {
+  const [selected, setSelected] = useState("");
+  const [comment, setComment] = useState("");
+  const [sent, setSent] = useState(false);
+  const needsComment = selected === "partial" || selected === "no";
+
+  const choose = (value: string) => {
+    setSelected(value);
+    setSent(false);
+    track("result_feedback_clicked", { submissionId, archetype, view, value });
+  };
+
+  const submit = () => {
+    track("result_feedback_submitted", { submissionId, archetype, view, value: selected, comment });
+    setSent(true);
+  };
+
+  return (
+    <section className="result-feedback-card">
+      <h2>Похоже на тебя?</h2>
+      <div className="feedback-buttons">
+        <button className={selected === "yes" ? "selected" : ""} onClick={() => choose("yes")}>Да, очень</button>
+        <button className={selected === "partial" ? "selected" : ""} onClick={() => choose("partial")}>Частично</button>
+        <button className={selected === "no" ? "selected" : ""} onClick={() => choose("no")}>Не очень</button>
+      </div>
+      {needsComment && (
+        <div className="feedback-comment">
+          <label>
+            Что не совпало?
+            <textarea
+              className="text-area"
+              value={comment}
+              placeholder="Например: не люблю розовый, люблю более яркие букеты…"
+              onChange={(event) => setComment(event.target.value)}
+            />
+          </label>
+          <button className="secondary-button" onClick={submit}>Отправить</button>
+        </div>
+      )}
+      {selected === "yes" && !sent && <p className="subtle">Спасибо — сохранили обратную связь.</p>}
+      {sent && <p className="subtle">Спасибо, это поможет сделать Flower ID точнее.</p>}
+    </section>
+  );
+}
+
+function getResultData(answers: Answers, profile: ComputedProfile, hardNo: string[]) {
+  const defaults = archetypeResultDefaults[profile.primary_archetype];
+  const palette = getResultPalette(answers, profile, defaults);
+  const flowers = (profile.favorite_flowers.length ? profile.favorite_flowers : defaults.flowers).filter(unique).slice(0, 7);
+  const avoid = [
+    ...profile.avoid_flowers,
+    ...profile.avoid_colors,
+    ...hardNo,
+    ...answers.packaging_stoplist
+      .filter((id) => id !== "no_hard_bans")
+      .map((id) => packagingStopOptions.find((option) => option.id === id)?.label ?? id),
+    answers.allergies.has_allergy ? answers.allergies.comment || "Аллергены и сильные ароматы" : "",
+  ].filter(Boolean).filter(unique);
+  const scent = getScentLabel(answers) || defaults.scent;
+  const packaging = getPackagingLabel(answers) || defaults.packaging;
+  const ideal = buildIdealBouquetText(palette, flowers, packaging, defaults);
+
+  return {
+    description: profile.description || defaults.description,
+    styleText: defaults.description,
+    tags: (profile.emotion.length ? [...profile.emotion, ...defaults.tags] : defaults.tags).filter(unique).slice(0, 4),
+    palette,
+    flowers,
+    avoid: avoid.length ? avoid.slice(0, 8) : defaults.avoid,
+    scent,
+    packaging,
+    ideal,
+    visuals: defaults.visuals,
+  };
+}
+
+function getResultPalette(answers: Answers, profile: ComputedProfile, defaults: ArchetypeResultDefault) {
+  const paletteIds = [answers.ideal_palette, ...answers.favorite_palettes]
+    .filter(Boolean)
+    .filter((id) => id !== "florist_palette")
+    .filter(unique);
+  const selected = paletteIds.flatMap((id) => {
+    const palette = palettes.find((item) => item.id === id);
+    if (!palette?.colors?.length) return [];
+    const names = palette.description?.split(", ") ?? [];
+    return palette.colors.map((color, index) => ({ name: names[index] ?? palette.label.toLowerCase(), color }));
+  });
+
+  if (selected.length) return selected.filter((item, index, list) => list.findIndex((other) => other.name === item.name) === index).slice(0, 5);
+  if (profile.preferred_colors.length) {
+    return profile.preferred_colors.slice(0, 5).map((name, index) => ({
+      name,
+      color: defaults.palette[index % defaults.palette.length]?.color ?? "#d9cec2",
+    }));
+  }
+  return defaults.palette;
+}
+
+function getScentLabel(answers: Answers) {
+  const scentMap: Record<string, string> = {
+    aromatic: "можно ароматный, если он мягкий",
+    light: "лёгкий или нейтральный",
+    none: "без выраженного запаха",
+    sensitive: "без сильного аромата",
+  };
+  const allergyMap: Record<string, string> = {
+    scent_sensitive: "без сильного аромата",
+    allergy: answers.allergies.comment ? `есть ограничения: ${answers.allergies.comment}` : "учесть аллергии и избегать резких ароматов",
+    unknown: "лучше нейтральный",
+  };
+  return allergyMap[answers.allergies.kind] || scentMap[answers.fragrance] || "";
+}
+
+function getPackagingLabel(answers: Answers) {
+  return answers.packaging
+    .map((id) => packagingOptions.find((option) => option.id === id)?.label.toLowerCase() ?? id)
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildIdealBouquetText(
+  palette: Array<{ name: string; color: string }>,
+  flowers: string[],
+  packaging: string,
+  defaults: ArchetypeResultDefault,
+) {
+  const paletteText = palette.slice(0, 3).map((item) => item.name).join(", ");
+  const flowersText = flowers.slice(0, 3).join(", ");
+  if (!paletteText && !flowersText) return defaults.ideal;
+  return [
+    "Композиция",
+    paletteText ? `в гамме ${paletteText}` : "",
+    flowersText ? `с акцентом на ${flowersText}` : "",
+    packaging ? `и подачей: ${packaging}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim() + ".";
+}
+
+function unique<T>(value: T, index: number, array: T[]) {
+  return array.indexOf(value) === index;
 }
 
 function ResultBlock({ title, items, fallback }: { title: string; items: string[]; fallback?: string }) {
