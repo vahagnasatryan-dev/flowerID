@@ -392,26 +392,52 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
           <div className="hero-layout">
             <div className="hero-copy">
               <p className="eyebrow">Цветочный профиль</p>
-              <h1>Создай свой Flower ID</h1>
+              <h1>Создай свой<br />цветочный профиль</h1>
               <p className="lead">
-                Узнай свой цветочный стиль и получай букеты, которые действительно тебе подходят.
-              </p>
-              <p className="subtle">
-                За пару минут соберем палитру, любимые цветы и стоп-лист.
+                Узнай, какие букеты тебе действительно подходят: стиль, палитра, любимые цветы, аромат, упаковка и стоп-лист.
               </p>
               <div className="hero-actions landing-actions">
-                <button className="primary-button" onClick={start}>Создать Flower ID</button>
-                <button className="secondary-button" onClick={() => {
+                <button className="primary-button" onClick={start}>Создать мой Flower ID</button>
+                <p className="cta-note">2 минуты · результатом можно поделиться</p>
+                <button className="landing-request-link" onClick={() => {
                   track("request_flower_id_clicked", { source: "landing" });
                   navigate("/request");
-                }}>Запросить Flower ID у другого человека</button>
+                }}>
+                  <span>Уже хотите подарить цветы?</span>
+                  Узнать Flower ID другого человека →
+                </button>
+              </div>
+              <div className="landing-benefit">
+                <strong>Близким проще выбрать.</strong>
+                <strong>Тебе приятнее получать.</strong>
+                <p>Поделись Flower ID — и тебе будут дарить букеты, которые действительно про тебя.</p>
               </div>
             </div>
-            <div className="landing-flower" aria-hidden="true" />
+            <div className="landing-visual">
+              <div className="landing-flower" aria-hidden="true" />
+              <article className="flower-id-preview-card" aria-label="Пример результата Flower ID">
+                <span>Ваш Flower ID</span>
+                <h2>Soft Minimalist</h2>
+                <div className="preview-section">
+                  <strong>Палитра</strong>
+                  <div className="preview-palette" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                  <p>молочный · пудровый · шалфейный</p>
+                </div>
+                <div className="preview-section">
+                  <strong>Подходит</strong>
+                  <p>ранункулюсы · анемоны · фрезия</p>
+                </div>
+                <div className="preview-section">
+                  <strong>Не дарить</strong>
+                  <p>красные розы · яркую упаковку</p>
+                </div>
+              </article>
+            </div>
           </div>
-          <p className="landing-benefit">
-            С Flower ID близким проще выбрать идеальный букет, а тебе — приятнее получать цветы, которые действительно про тебя
-          </p>
         </section>
       </section>
     </main>
