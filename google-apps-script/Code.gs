@@ -41,6 +41,7 @@ const SHEET_HEADERS = {
     "personal_note",
     "florist_brief",
     "payload_json",
+    "updated_at",
   ],
   requests: [
     "received_at",
@@ -169,6 +170,7 @@ function appendSubmission(ss, record, receivedAt) {
     answers.personal_note || "",
     profile.florist_brief || "",
     JSON.stringify(payload),
+    payload.updated_at || "",
   ]);
 }
 
@@ -196,7 +198,15 @@ function appendRequest(ss, record, receivedAt) {
 function getSheet(ss, name) {
   const sheet = ss.getSheetByName(name) || ss.insertSheet(name);
   const headers = SHEET_HEADERS[name];
-  if (sheet.getLastRow() === 0) sheet.appendRow(headers);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(headers);
+    return sheet;
+  }
+  const existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const missingHeaders = headers.filter((header) => existingHeaders.indexOf(header) === -1);
+  if (missingHeaders.length) {
+    sheet.getRange(1, existingHeaders.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+  }
   return sheet;
 }
 

@@ -97,6 +97,7 @@ export interface CollectorRecord {
 export interface FlowerSubmission {
   id: string;
   created_at: string;
+  updated_at?: string;
   answers: Answers;
   computed_profile: ComputedProfile;
   source?: string | null;

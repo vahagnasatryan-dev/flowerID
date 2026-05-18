@@ -1471,6 +1471,22 @@ body {
   font-weight: 650;
 }
 
+.landing-my-link {
+  width: fit-content;
+  min-height: auto;
+  margin: 0 auto;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #7a716b;
+  font-size: 13px;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  box-shadow: none;
+}
+
 .landing-visual {
   position: relative;
   z-index: 2;
@@ -1526,6 +1542,20 @@ body {
   color: var(--ink);
   font-size: 23px;
   line-height: 1;
+}
+
+.flower-id-pill {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  margin: 4px 0 10px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #f0ebe5;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .preview-section {
@@ -1638,6 +1668,53 @@ body {
   font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
+}
+
+.saved-id-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.saved-id-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 24px;
+  background: #f2ede7;
+}
+
+.saved-id-card > span {
+  color: #7a716b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.saved-id-card h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.saved-id-card p {
+  margin: 0;
+  color: #6c625c;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.saved-id-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.saved-id-actions .secondary-button {
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 13px;
 }
 
 .message-card,

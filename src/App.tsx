@@ -13,20 +13,24 @@ import {
 } from "./data";
 import { computeProfile, getBouquetHardNo, getPublicPayload } from "./scoring";
 import {
+  clearEditingSubmission,
   flushCollectorQueue,
   getCollectorQueueSize,
   getCollectorUrlHint,
   isCollectorConfigured,
   loadAnswers,
+  loadEditingSubmissionId,
   loadFlowerRequest,
   loadStep,
   loadSubmission,
+  loadSubmissions,
   resetStorage,
   saveAnswers,
   saveFlowerRequest,
   saveStep,
   saveSubmission,
   sendCollectorDebugRecord,
+  startEditingSubmission,
   track,
 } from "./storage";
 import type { Answers, ComputedProfile, FlowerRequest, FlowerReaction, FlowerSubmission, Option, Reaction } from "./types";
@@ -100,6 +104,7 @@ export default function App() {
     return <LandingPage navigate={navigate} startQuiz={() => setQuizActive(true)} key={routeKey} />;
   }
   if (path === "/request") return <RequestPage navigate={navigate} />;
+  if (path === "/my-flower-id") return <MyFlowerIdPage navigate={navigate} startQuiz={() => setQuizActive(true)} />;
   if (path === "/metrics-debug") return <MetricsDebugPage navigate={navigate} />;
   if (path.startsWith("/r/")) return <RecipientRequestPage requestToken={decodeURIComponent(path.split("/r/")[1] || "")} navigate={navigate} />;
   if (path.startsWith("/result/")) return <StoredResultPage submissionId={decodeURIComponent(path.split("/result/")[1] || "")} navigate={navigate} />;
@@ -111,6 +116,7 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
   const params = new URLSearchParams(window.location.search);
   const referrerId = params.get("ref");
   const requestId = params.get("requestId");
+  const editingSubmissionId = loadEditingSubmissionId();
   const [answers, setAnswers] = useState<Answers>(() => loadAnswers(defaultAnswers));
   const [step, setStep] = useState(() => Math.min(loadStep(), totalSteps - 1));
   const [toast, setToast] = useState("");
@@ -138,11 +144,14 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
     }
     if (step === 0) track("quiz_started");
     if (step === 8) {
-      track("quiz_completed", { primary_archetype: profile.primary_archetype, requestId, referrerId });
-      const id = createId("fid");
+      track("quiz_completed", { primary_archetype: profile.primary_archetype, requestId, referrerId, editingSubmissionId });
+      const existingSubmission = editingSubmissionId ? loadSubmission(editingSubmissionId) : null;
+      const id = editingSubmissionId || createId("fid");
+      const now = new Date().toISOString();
       const submission: FlowerSubmission = {
         id,
-        created_at: new Date().toISOString(),
+        created_at: existingSubmission?.created_at || now,
+        updated_at: editingSubmissionId ? now : undefined,
         answers,
         computed_profile: profile,
         source: params.get("source"),
@@ -163,6 +172,7 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
         }
       }
       resetStorage();
+      clearEditingSubmission();
       sessionStorage.removeItem(activeQuizKey);
       onExit();
       navigate(`/result/${id}${requestId ? `?requestId=${encodeURIComponent(requestId)}` : ""}`);
@@ -192,6 +202,7 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
   const resetProgress = () => {
     const freshAnswers = structuredClone(defaultAnswers);
     resetStorage();
+    clearEditingSubmission();
     sessionStorage.removeItem(activeQuizKey);
     onExit();
     setAnswers(freshAnswers);
@@ -205,6 +216,7 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
 
   const restart = () => {
     resetStorage();
+    clearEditingSubmission();
     sessionStorage.removeItem(activeQuizKey);
     onExit();
     setAnswers(defaultAnswers);
@@ -318,6 +330,7 @@ function PublicProfile({
 }: {
   payload: {
     name: string;
+    flower_id?: string;
     title: string;
     description: string;
     preferred_colors: string[];
@@ -331,6 +344,7 @@ function PublicProfile({
       <section className="quiz-frame public-frame">
         <div className="screen result-screen">
           <p className="eyebrow">{payload.name ? `Портрет: ${payload.name}` : "Цветочный портрет"}</p>
+          {payload.flower_id && <span className="flower-id-pill">{payload.flower_id}</span>}
           <h1>{payload.title}</h1>
           <p className="lead">{payload.description}</p>
           <div className="result-grid">
@@ -406,6 +420,7 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
                   <span>Уже хотите подарить цветы?</span>
                   Узнать Flower ID другого человека →
                 </button>
+                <button className="landing-my-link" onClick={() => navigate("/my-flower-id")}>Мои сохраненные Flower ID</button>
               </div>
               <div className="landing-benefit">
                 <strong>Близким проще выбрать.</strong>
@@ -481,12 +496,75 @@ function StoredResultPage({ submissionId, navigate }: { submissionId: string; na
           submissionId={submission.id}
           requestId={requestId}
           navigate={navigate}
+          onEdit={() => editSavedFlowerId(submission, navigate)}
           onRestart={() => navigate("/")}
           onToast={(message) => {
             setToast(message);
             window.setTimeout(() => setToast(""), 2600);
           }}
         />
+      </section>
+      {toast && <div className="toast">{toast}</div>}
+    </main>
+  );
+}
+
+function MyFlowerIdPage({ navigate, startQuiz }: { navigate: (url: string) => void; startQuiz: () => void }) {
+  const submissions = Object.values(loadSubmissions()).sort((a, b) =>
+    (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at),
+  );
+  const [toast, setToast] = useState("");
+
+  const copy = async (submission: FlowerSubmission) => {
+    const link = createPublicLink(submission.answers, submission.computed_profile, submission.id);
+    await navigator.clipboard.writeText(link);
+    track("saved_flower_id_link_copied", { submissionId: submission.id });
+    setToast("Ссылка скопирована");
+    window.setTimeout(() => setToast(""), 2200);
+  };
+
+  const createNew = () => {
+    resetStorage();
+    clearEditingSubmission();
+    saveAnswers(structuredClone(defaultAnswers));
+    saveStep(1);
+    sessionStorage.setItem(activeQuizKey, "1");
+    track("saved_flower_id_create_new_clicked");
+    startQuiz();
+    navigate("/");
+  };
+
+  return (
+    <main className="app-shell">
+      <section className="quiz-frame">
+        <Header step={0} progress={0} onBack={() => navigate("/")} />
+        <section className="screen">
+          <p className="eyebrow">Мои Flower ID</p>
+          <h1>Сохраненные профили</h1>
+          <p className="lead">Flower ID сохраняются на этом устройстве. Их можно открыть, отправить ссылкой или отредактировать без аккаунта.</p>
+          {!submissions.length ? (
+            <article className="message-card">
+              <strong>Пока нет сохраненных Flower ID</strong>
+              <p>Создайте первый профиль, и он появится здесь автоматически.</p>
+            </article>
+          ) : (
+            <div className="saved-id-list">
+              {submissions.map((submission) => (
+                <article className="saved-id-card" key={submission.id}>
+                  <span>{formatFlowerId(submission.id)}</span>
+                  <h2>{submission.computed_profile.title}</h2>
+                  <p>{submission.answers.user.name || "Без имени"} · {formatDate(submission.updated_at || submission.created_at)}</p>
+                  <div className="saved-id-actions">
+                    <button className="secondary-button" onClick={() => navigate(`/result/${submission.id}`)}>Открыть</button>
+                    <button className="secondary-button" onClick={() => copy(submission)}>Отправить</button>
+                    <button className="secondary-button" onClick={() => editSavedFlowerId(submission, navigate)}>Редактировать</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+          <button className="primary-button" onClick={createNew}>Создать новый Flower ID</button>
+        </section>
       </section>
       {toast && <div className="toast">{toast}</div>}
     </main>
@@ -1190,6 +1268,7 @@ function ResultScreen({
   submissionId,
   requestId,
   navigate,
+  onEdit,
   onRestart,
   onToast,
 }: {
@@ -1199,10 +1278,11 @@ function ResultScreen({
   submissionId: string;
   requestId?: string | null;
   navigate: (url: string) => void;
+  onEdit?: () => void;
   onRestart: () => void;
   onToast: (message: string) => void;
 }) {
-  const publicLink = `${window.location.origin}/result/${submissionId}`;
+  const publicLink = createPublicLink(answers, profile, submissionId);
   const referralLink = `${publicLink}?ref=${submissionId}`;
   const hardNo = getBouquetHardNo(answers);
   const name = answers.user.name || "получателя";
@@ -1237,6 +1317,7 @@ function ResultScreen({
         </article>
       )}
       <p className="eyebrow">{isShared ? `Flower ID ${answers.user.name || ""}` : "Твой Flower ID"}</p>
+      {submissionId && <span className="flower-id-pill">{formatFlowerId(submissionId)}</span>}
       <h1>{profile.title}</h1>
       <div className={`archetype-photo archetype-${profile.primary_archetype}`} aria-label={`Визуал архетипа ${profile.title}`} />
       <p className="lead">{profile.description}</p>
@@ -1259,7 +1340,9 @@ function ResultScreen({
         <button className="ghost-button" onClick={() => openOrder(orderMessage, { submissionId, requestId, archetypeId: profile.primary_archetype })}>
           {isShared ? `Подобрать букет ${answers.user.name ? `для ${answers.user.name}` : "по Flower ID"}` : "Подобрать букет по моему Flower ID"}
         </button>
-        <button className="secondary-button" onClick={() => copy(copyText, "profile_copied")}>Сохранить мой Flower ID</button>
+        <button className="secondary-button" onClick={() => copy(copyText, "profile_copied")}>Скопировать мой Flower ID</button>
+        {!isShared && onEdit && <button className="secondary-button" onClick={onEdit}>Редактировать Flower ID</button>}
+        {!isShared && <button className="secondary-button" onClick={() => navigate("/my-flower-id")}>Мои Flower ID</button>}
         <button className="secondary-button" onClick={() => {
           track("request_flower_id_clicked", { source: "result", submissionId });
           navigate("/request");
@@ -1453,8 +1536,11 @@ function decodeRequestToken(token: string): FlowerRequest | null {
   }
 }
 
-function createPublicLink(answers: Answers, profile: ReturnType<typeof computeProfile>) {
-  const payload = getPublicPayload(answers, profile);
+function createPublicLink(answers: Answers, profile: ReturnType<typeof computeProfile>, submissionId?: string) {
+  const payload = {
+    ...getPublicPayload(answers, profile),
+    flower_id: submissionId ? formatFlowerId(submissionId) : undefined,
+  };
   return `${window.location.origin}/p/${encodeBase64Url(JSON.stringify(payload))}`;
 }
 
@@ -1464,6 +1550,7 @@ function readPublicPayload() {
     const raw = window.location.pathname.split("/p/")[1];
     return JSON.parse(decodeBase64Url(raw)) as {
       name: string;
+      flower_id?: string;
       title: string;
       description: string;
       preferred_colors: string[];
@@ -1486,6 +1573,24 @@ function decodeBase64Url(value: string) {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
   return new TextDecoder().decode(bytes);
+}
+
+function editSavedFlowerId(submission: FlowerSubmission, navigate: (url: string) => void) {
+  resetStorage();
+  saveAnswers(structuredClone(submission.answers));
+  saveStep(1);
+  startEditingSubmission(submission.id);
+  sessionStorage.setItem(activeQuizKey, "1");
+  track("saved_flower_id_edit_clicked", { submissionId: submission.id });
+  navigate("/");
+}
+
+function formatFlowerId(id: string) {
+  return `FID-${id.replace(/^fid_/, "").replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
 }
 
 function createId(prefix: string) {

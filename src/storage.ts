@@ -7,6 +7,7 @@ const submissionsKey = "flower_id_submissions";
 const requestsKey = "flower_id_requests";
 const collectorQueueKey = "flower_id_collector_queue";
 const sessionKey = "flower_id_session_id";
+const editingSubmissionKey = "flower_id_editing_submission";
 const collectorUrl = import.meta.env.VITE_FLOWER_COLLECTOR_URL as string | undefined;
 
 let collectorFlushInFlight = false;
@@ -37,6 +38,18 @@ export function saveStep(step: number) {
 export function resetStorage() {
   localStorage.removeItem(answersKey);
   localStorage.removeItem(stepKey);
+}
+
+export function startEditingSubmission(id: string) {
+  sessionStorage.setItem(editingSubmissionKey, id);
+}
+
+export function loadEditingSubmissionId() {
+  return sessionStorage.getItem(editingSubmissionKey);
+}
+
+export function clearEditingSubmission() {
+  sessionStorage.removeItem(editingSubmissionKey);
 }
 
 export function track(event_name: string, event_payload: Record<string, unknown> = {}) {
@@ -184,6 +197,10 @@ function enqueueCollectorRecord(kind: CollectorRecordKind, id: string, payload: 
 }
 
 function createCollectorRecordId(kind: CollectorRecordKind, id: string, payload: Record<string, unknown>) {
+  if (kind === "submission") {
+    const moment = String(payload.updated_at || payload.created_at || "");
+    return `${kind}_${id}_${moment}`;
+  }
   if (kind === "request") {
     const status = String(payload.status || "unknown");
     const moment = String(payload.completed_at || payload.started_at || payload.opened_at || payload.created_at || "");
