@@ -84,17 +84,15 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  if (String((e && e.parameter && e.parameter.setup) || "") === "1") {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    Object.keys(SHEET_HEADERS).forEach((name) => getSheet(ss, name));
-    return jsonResponse({
-      ok: true,
-      setup: true,
-      spreadsheet: ss.getUrl(),
-      sheets: Object.keys(SHEET_HEADERS),
-    });
-  }
-  return jsonResponse({ ok: true, service: "flower_id_collector" });
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  Object.keys(SHEET_HEADERS).forEach((name) => getSheet(ss, name));
+  return jsonResponse({
+    ok: true,
+    service: "flower_id_collector",
+    setup: true,
+    spreadsheet: ss.getUrl(),
+    sheets: Object.keys(SHEET_HEADERS),
+  });
 }
 
 function appendEvent(ss, record, receivedAt) {
