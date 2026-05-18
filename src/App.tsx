@@ -1634,7 +1634,10 @@ function ResultHero({
       <div className="result-hero-copy">
         <p className="eyebrow">{title}</p>
         {submissionId && <span className="flower-id-pill">{formatFlowerId(submissionId)}</span>}
-        <h1>{name} — {archetypeName}</h1>
+        <h1 className="result-identity">
+          <span>{name}</span>
+          <small>{archetypeName}</small>
+        </h1>
         <p className="lead">{subtitle}</p>
         <p className="result-emotional-description">{description}</p>
         <div className="result-style-tags" aria-label="Стиль Flower ID">
