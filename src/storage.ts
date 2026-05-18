@@ -9,6 +9,9 @@ const collectorQueueKey = "flower_id_collector_queue";
 const sessionKey = "flower_id_session_id";
 const collectorUrl = import.meta.env.VITE_FLOWER_COLLECTOR_URL as string | undefined;
 
+let collectorFlushInFlight = false;
+let collectorFlushTimer: number | null = null;
+
 export function loadAnswers<T>(fallback: T): T {
   try {
     const raw = localStorage.getItem(answersKey);
@@ -99,10 +102,13 @@ export function loadFlowerRequests(): Record<string, FlowerRequest> {
 
 export function flushCollectorQueue() {
   if (!collectorUrl) return;
+  if (collectorFlushInFlight) return;
   const queue = loadCollectorQueue();
   if (!queue.length) return;
 
+  collectorFlushInFlight = true;
   const batch = queue.slice(0, 25);
+  let didFail = false;
   fetch(collectorUrl, {
     method: "POST",
     mode: "no-cors",
@@ -120,10 +126,13 @@ export function flushCollectorQueue() {
     .then(() => {
       const sent = new Set(batch.map((item) => item.id));
       localStorage.setItem(collectorQueueKey, JSON.stringify(loadCollectorQueue().filter((item) => !sent.has(item.id))));
-      if (loadCollectorQueue().length) window.setTimeout(flushCollectorQueue, 600);
     })
     .catch(() => {
-      window.setTimeout(flushCollectorQueue, 5000);
+      didFail = true;
+    })
+    .finally(() => {
+      collectorFlushInFlight = false;
+      if (loadCollectorQueue().length) scheduleCollectorFlush(didFail ? 5000 : 600);
     });
 }
 
@@ -161,16 +170,35 @@ export function sendCollectorDebugRecord() {
 }
 
 function enqueueCollectorRecord(kind: CollectorRecordKind, id: string, payload: Record<string, unknown>) {
+  const recordId = createCollectorRecordId(kind, id, payload);
   const record: CollectorRecord = {
-    id: `${kind}_${id}_${Date.now()}`,
+    id: recordId,
     kind,
     session_id: getSessionId(),
     created_at: new Date().toISOString(),
     payload,
   };
-  const queue = [...loadCollectorQueue(), record].slice(-500);
+  const queue = [...loadCollectorQueue().filter((item) => item.id !== recordId), record].slice(-500);
   localStorage.setItem(collectorQueueKey, JSON.stringify(queue));
-  flushCollectorQueue();
+  scheduleCollectorFlush();
+}
+
+function createCollectorRecordId(kind: CollectorRecordKind, id: string, payload: Record<string, unknown>) {
+  if (kind === "request") {
+    const status = String(payload.status || "unknown");
+    const moment = String(payload.completed_at || payload.started_at || payload.opened_at || payload.created_at || "");
+    return `${kind}_${id}_${status}_${moment}`;
+  }
+  return `${kind}_${id}`;
+}
+
+function scheduleCollectorFlush(delay = 250) {
+  if (!collectorUrl) return;
+  if (collectorFlushTimer !== null) window.clearTimeout(collectorFlushTimer);
+  collectorFlushTimer = window.setTimeout(() => {
+    collectorFlushTimer = null;
+    flushCollectorQueue();
+  }, delay);
 }
 
 function loadCollectorQueue(): CollectorRecord[] {

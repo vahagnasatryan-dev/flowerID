@@ -68,14 +68,35 @@ function doPost(e) {
     const records = Array.isArray(body.records) ? body.records : [];
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const receivedAt = new Date().toISOString();
+    const seenInBatch = {};
+    let inserted = 0;
+    let skipped = 0;
 
     records.forEach((record) => {
-      if (record.kind === "event") appendEvent(ss, record, receivedAt);
-      if (record.kind === "submission") appendSubmission(ss, record, receivedAt);
-      if (record.kind === "request") appendRequest(ss, record, receivedAt);
+      if (!record || !record.id || seenInBatch[record.id] || isProcessedRecord(record.id)) {
+        skipped += 1;
+        return;
+      }
+
+      seenInBatch[record.id] = true;
+      if (record.kind === "event") {
+        appendEvent(ss, record, receivedAt);
+        markProcessedRecord(record.id);
+        inserted += 1;
+      }
+      if (record.kind === "submission") {
+        appendSubmission(ss, record, receivedAt);
+        markProcessedRecord(record.id);
+        inserted += 1;
+      }
+      if (record.kind === "request") {
+        appendRequest(ss, record, receivedAt);
+        markProcessedRecord(record.id);
+        inserted += 1;
+      }
     });
 
-    return jsonResponse({ ok: true, inserted: records.length });
+    return jsonResponse({ ok: true, inserted, skipped });
   } catch (error) {
     return jsonResponse({ ok: false, error: String(error) });
   } finally {
@@ -185,6 +206,19 @@ function join(value) {
 
 function value(object, key) {
   return object && object[key] ? object[key] : "";
+}
+
+function isProcessedRecord(recordId) {
+  return PropertiesService.getScriptProperties().getProperty(processedRecordKey(recordId)) === "1";
+}
+
+function markProcessedRecord(recordId) {
+  PropertiesService.getScriptProperties().setProperty(processedRecordKey(recordId), "1");
+}
+
+function processedRecordKey(recordId) {
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(recordId));
+  return "record_" + Utilities.base64EncodeWebSafe(digest).slice(0, 43);
 }
 
 function jsonResponse(payload) {
