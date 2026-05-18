@@ -101,7 +101,7 @@ export default function App() {
   }
   if (path === "/request") return <RequestPage navigate={navigate} />;
   if (path === "/metrics-debug") return <MetricsDebugPage navigate={navigate} />;
-  if (path.startsWith("/r/")) return <RecipientRequestPage requestId={decodeURIComponent(path.split("/r/")[1] || "")} navigate={navigate} />;
+  if (path.startsWith("/r/")) return <RecipientRequestPage requestToken={decodeURIComponent(path.split("/r/")[1] || "")} navigate={navigate} />;
   if (path.startsWith("/result/")) return <StoredResultPage submissionId={decodeURIComponent(path.split("/result/")[1] || "")} navigate={navigate} />;
   if (path === "/" && quizActive) return <QuizApp navigate={navigate} onExit={() => setQuizActive(false)} />;
   return <LandingPage navigate={navigate} startQuiz={() => setQuizActive(true)} key={routeKey} />;
@@ -354,11 +354,27 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
   }, []);
 
   const start = () => {
+    const requestId = new URLSearchParams(window.location.search).get("requestId");
     resetStorage();
     saveAnswers(structuredClone(defaultAnswers));
     saveStep(1);
     sessionStorage.setItem(activeQuizKey, "1");
     track("start_quiz_clicked");
+    if (requestId) {
+      const request = loadFlowerRequest(requestId);
+      if (request) {
+        saveFlowerRequest({
+          ...request,
+          status: "started_quiz",
+          started_at: request.started_at ?? new Date().toISOString(),
+        });
+        track("request_quiz_started", {
+          requestId,
+          requesterName: request.requesterName,
+          recipientName: request.recipientName,
+        });
+      }
+    }
     startQuiz();
     navigate(window.location.search ? `/${window.location.search}` : "/");
   };
@@ -460,7 +476,7 @@ function RequestPage({ navigate }: { navigate: (url: string) => void }) {
     track("request_started");
   }, []);
 
-  const requestLink = created ? `${window.location.origin}/r/${created.id}` : "";
+  const requestLink = created ? `${window.location.origin}/r/${encodeURIComponent(encodeRequestToken(created))}` : "";
   const readyMessage = created
     ? `${created.requesterName || "Привет"} хочет подарить цветы без ошибки.\nСоздай свой Flower ID - это займет около минуты и покажет твой цветочный стиль.\n${requestLink}`
     : "";
@@ -525,7 +541,11 @@ function RequestPage({ navigate }: { navigate: (url: string) => void }) {
             };
             saveFlowerRequest(request);
             setCreated(request);
-            track("request_created", { requestId: request.id, recipientName: request.recipientName });
+            track("request_created", {
+              requestId: request.id,
+              requesterName: request.requesterName,
+              recipientName: request.recipientName,
+            });
           }}>Создать ссылку-запрос</button>
         </section>
       </section>
@@ -534,14 +554,26 @@ function RequestPage({ navigate }: { navigate: (url: string) => void }) {
   );
 }
 
-function RecipientRequestPage({ requestId, navigate }: { requestId: string; navigate: (url: string) => void }) {
-  const request = loadFlowerRequest(requestId);
+function RecipientRequestPage({ requestToken, navigate }: { requestToken: string; navigate: (url: string) => void }) {
+  const decodedRequest = useMemo(() => decodeRequestToken(requestToken), [requestToken]);
+  const requestId = decodedRequest?.id || requestToken;
+  const storedRequest = loadFlowerRequest(requestId);
+  const request = storedRequest || decodedRequest;
 
   useEffect(() => {
     if (!request) return;
-    saveFlowerRequest({ ...request, status: request.status === "created" ? "opened" : request.status, opened_at: request.opened_at ?? new Date().toISOString() });
-    track("request_link_opened", { requestId });
-  }, [request, requestId]);
+    const openedRequest: FlowerRequest = {
+      ...request,
+      status: request.status === "created" ? "opened" : request.status,
+      opened_at: request.opened_at ?? new Date().toISOString(),
+    };
+    saveFlowerRequest(openedRequest);
+    track("request_link_opened", {
+      requestId: openedRequest.id,
+      requesterName: openedRequest.requesterName,
+      recipientName: openedRequest.recipientName,
+    });
+  }, [requestId, requestToken]);
 
   if (!request) {
     return <EmptyState title="Запрос не найден" text="Возможно, ссылка устарела. Можно создать свой Flower ID." action="Создать Flower ID" onAction={() => navigate("/")} />;
@@ -1360,21 +1392,51 @@ function flowerSubtitle(id: string) {
   return subtitles[id] ?? "цветочный акцент";
 }
 
+function encodeRequestToken(request: FlowerRequest) {
+  const payload = {
+    id: request.id,
+    requesterName: request.requesterName,
+    recipientName: request.recipientName,
+    occasion: request.occasion,
+    comment: request.comment,
+    status: "created",
+    created_at: request.created_at,
+  };
+  return encodeBase64Url(JSON.stringify(payload));
+}
+
+function decodeRequestToken(token: string): FlowerRequest | null {
+  try {
+    const decoded = JSON.parse(decodeBase64Url(token)) as Partial<FlowerRequest>;
+    if (!decoded.id || !decoded.recipientName || !decoded.created_at) return null;
+    return {
+      id: decoded.id,
+      requesterName: decoded.requesterName || "",
+      recipientName: decoded.recipientName,
+      occasion: decoded.occasion || "",
+      comment: decoded.comment || "",
+      status: decoded.status || "created",
+      created_at: decoded.created_at,
+      opened_at: decoded.opened_at,
+      started_at: decoded.started_at,
+      completed_at: decoded.completed_at,
+      submissionId: decoded.submissionId,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function createPublicLink(answers: Answers, profile: ReturnType<typeof computeProfile>) {
   const payload = getPublicPayload(answers, profile);
-  const json = JSON.stringify(payload);
-  const bytes = new TextEncoder().encode(json);
-  const encoded = btoa(String.fromCharCode(...bytes));
-  return `${window.location.origin}/p/${encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`;
+  return `${window.location.origin}/p/${encodeBase64Url(JSON.stringify(payload))}`;
 }
 
 function readPublicPayload() {
   if (!window.location.pathname.startsWith("/p/")) return null;
   try {
     const raw = window.location.pathname.split("/p/")[1];
-    const base64 = raw.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(raw.length / 4) * 4, "=");
-    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes)) as {
+    return JSON.parse(decodeBase64Url(raw)) as {
       name: string;
       title: string;
       description: string;
@@ -1386,6 +1448,18 @@ function readPublicPayload() {
   } catch {
     return null;
   }
+}
+
+function encodeBase64Url(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function decodeBase64Url(value: string) {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 function createId(prefix: string) {
