@@ -77,9 +77,21 @@ export interface ComputedProfile {
 }
 
 export interface QuizEvent {
+  id: string;
+  session_id: string;
   event_name: string;
   event_payload: Record<string, unknown>;
   created_at: string;
+}
+
+export type CollectorRecordKind = "event" | "submission" | "request";
+
+export interface CollectorRecord {
+  id: string;
+  kind: CollectorRecordKind;
+  session_id: string;
+  created_at: string;
+  payload: Record<string, unknown>;
 }
 
 export interface FlowerSubmission {

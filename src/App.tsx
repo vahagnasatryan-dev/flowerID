@@ -13,6 +13,7 @@ import {
 } from "./data";
 import { computeProfile, getBouquetHardNo, getPublicPayload } from "./scoring";
 import {
+  flushCollectorQueue,
   loadAnswers,
   loadFlowerRequest,
   loadStep,
@@ -72,6 +73,12 @@ export default function App() {
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
+    flushCollectorQueue();
+    window.addEventListener("online", flushCollectorQueue);
+    return () => window.removeEventListener("online", flushCollectorQueue);
   }, []);
 
   const navigate = (url: string) => {

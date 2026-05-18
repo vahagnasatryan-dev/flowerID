@@ -1,10 +1,13 @@
-import type { Answers, FlowerRequest, FlowerSubmission, QuizEvent } from "./types";
+import type { Answers, CollectorRecord, CollectorRecordKind, FlowerRequest, FlowerSubmission, QuizEvent } from "./types";
 
 const answersKey = "flower_portrait_answers";
 const stepKey = "flower_portrait_step";
 const eventKey = "quiz_events";
 const submissionsKey = "flower_id_submissions";
 const requestsKey = "flower_id_requests";
+const collectorQueueKey = "flower_id_collector_queue";
+const sessionKey = "flower_id_session_id";
+const collectorUrl = import.meta.env.VITE_FLOWER_COLLECTOR_URL as string | undefined;
 
 export function loadAnswers<T>(fallback: T): T {
   try {
@@ -35,12 +38,16 @@ export function resetStorage() {
 
 export function track(event_name: string, event_payload: Record<string, unknown> = {}) {
   const events = loadEvents();
+  const session_id = getSessionId();
   const next: QuizEvent = {
+    id: createId("evt"),
+    session_id,
     event_name,
     event_payload,
     created_at: new Date().toISOString(),
   };
   localStorage.setItem(eventKey, JSON.stringify([...events, next]));
+  enqueueCollectorRecord("event", next.id, next as unknown as Record<string, unknown>);
 }
 
 export function loadEvents(): QuizEvent[] {
@@ -55,6 +62,7 @@ export function loadEvents(): QuizEvent[] {
 export function saveSubmission(submission: FlowerSubmission) {
   const submissions = loadSubmissions();
   localStorage.setItem(submissionsKey, JSON.stringify({ ...submissions, [submission.id]: submission }));
+  enqueueCollectorRecord("submission", submission.id, submission as unknown as Record<string, unknown>);
 }
 
 export function loadSubmission(id: string) {
@@ -73,6 +81,7 @@ export function loadSubmissions(): Record<string, FlowerSubmission> {
 export function saveFlowerRequest(request: FlowerRequest) {
   const requests = loadFlowerRequests();
   localStorage.setItem(requestsKey, JSON.stringify({ ...requests, [request.id]: request }));
+  enqueueCollectorRecord("request", request.id, request as unknown as Record<string, unknown>);
 }
 
 export function loadFlowerRequest(id: string) {
@@ -86,4 +95,73 @@ export function loadFlowerRequests(): Record<string, FlowerRequest> {
   } catch {
     return {};
   }
+}
+
+export function flushCollectorQueue() {
+  if (!collectorUrl) return;
+  const queue = loadCollectorQueue();
+  if (!queue.length) return;
+
+  const batch = queue.slice(0, 25);
+  fetch(collectorUrl, {
+    method: "POST",
+    mode: "no-cors",
+    keepalive: true,
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8",
+    },
+    body: JSON.stringify({
+      app: "flower_id",
+      schema_version: 1,
+      sent_at: new Date().toISOString(),
+      records: batch,
+    }),
+  })
+    .then(() => {
+      const sent = new Set(batch.map((item) => item.id));
+      localStorage.setItem(collectorQueueKey, JSON.stringify(loadCollectorQueue().filter((item) => !sent.has(item.id))));
+      if (loadCollectorQueue().length) window.setTimeout(flushCollectorQueue, 600);
+    })
+    .catch(() => {
+      window.setTimeout(flushCollectorQueue, 5000);
+    });
+}
+
+export function getCollectorQueueSize() {
+  return loadCollectorQueue().length;
+}
+
+function enqueueCollectorRecord(kind: CollectorRecordKind, id: string, payload: Record<string, unknown>) {
+  const record: CollectorRecord = {
+    id: `${kind}_${id}_${Date.now()}`,
+    kind,
+    session_id: getSessionId(),
+    created_at: new Date().toISOString(),
+    payload,
+  };
+  const queue = [...loadCollectorQueue(), record].slice(-500);
+  localStorage.setItem(collectorQueueKey, JSON.stringify(queue));
+  flushCollectorQueue();
+}
+
+function loadCollectorQueue(): CollectorRecord[] {
+  try {
+    const raw = localStorage.getItem(collectorQueueKey);
+    return raw ? (JSON.parse(raw) as CollectorRecord[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function getSessionId() {
+  const existing = sessionStorage.getItem(sessionKey);
+  if (existing) return existing;
+  const next = createId("sid");
+  sessionStorage.setItem(sessionKey, next);
+  return next;
+}
+
+function createId(prefix: string) {
+  if ("crypto" in window && "randomUUID" in crypto) return `${prefix}_${crypto.randomUUID()}`;
+  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
