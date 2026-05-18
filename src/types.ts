@@ -84,7 +84,7 @@ export interface QuizEvent {
   created_at: string;
 }
 
-export type CollectorRecordKind = "event" | "submission" | "request";
+export type CollectorRecordKind = "event" | "submission" | "request" | "feedback";
 
 export interface CollectorRecord {
   id: string;
@@ -117,4 +117,15 @@ export interface FlowerRequest {
   opened_at?: string;
   started_at?: string;
   completed_at?: string;
+}
+
+export interface ResultFeedbackRecord {
+  id: string;
+  submissionId: string;
+  archetype: ArchetypeId;
+  view: string;
+  phase: "clicked" | "submitted";
+  value: string;
+  comment: string;
+  created_at: string;
 }

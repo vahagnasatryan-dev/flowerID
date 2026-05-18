@@ -1,10 +1,11 @@
-import type { Answers, CollectorRecord, CollectorRecordKind, FlowerRequest, FlowerSubmission, QuizEvent } from "./types";
+import type { Answers, CollectorRecord, CollectorRecordKind, FlowerRequest, FlowerSubmission, QuizEvent, ResultFeedbackRecord } from "./types";
 
 const answersKey = "flower_portrait_answers";
 const stepKey = "flower_portrait_step";
 const eventKey = "quiz_events";
 const submissionsKey = "flower_id_submissions";
 const requestsKey = "flower_id_requests";
+const feedbackKey = "flower_id_result_feedback";
 const collectorQueueKey = "flower_id_collector_queue";
 const sessionKey = "flower_id_session_id";
 const editingSubmissionKey = "flower_id_editing_submission";
@@ -108,6 +109,21 @@ export function loadFlowerRequests(): Record<string, FlowerRequest> {
   try {
     const raw = localStorage.getItem(requestsKey);
     return raw ? (JSON.parse(raw) as Record<string, FlowerRequest>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveResultFeedback(feedback: ResultFeedbackRecord) {
+  const feedbackRecords = loadResultFeedback();
+  localStorage.setItem(feedbackKey, JSON.stringify({ ...feedbackRecords, [feedback.id]: feedback }));
+  enqueueCollectorRecord("feedback", feedback.id, feedback as unknown as Record<string, unknown>);
+}
+
+export function loadResultFeedback(): Record<string, ResultFeedbackRecord> {
+  try {
+    const raw = localStorage.getItem(feedbackKey);
+    return raw ? (JSON.parse(raw) as Record<string, ResultFeedbackRecord>) : {};
   } catch {
     return {};
   }

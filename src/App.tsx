@@ -24,6 +24,7 @@ import {
   resetStorage,
   saveAnswers,
   saveFlowerRequest,
+  saveResultFeedback,
   saveStep,
   saveSubmission,
   sendCollectorDebugRecord,
@@ -1809,10 +1810,30 @@ function ResultFeedback({
     setSelected(value);
     setSent(false);
     track("result_feedback_clicked", { submissionId, archetype, view, value });
+    saveResultFeedback({
+      id: createId("fb"),
+      submissionId,
+      archetype,
+      view,
+      phase: "clicked",
+      value,
+      comment: "",
+      created_at: new Date().toISOString(),
+    });
   };
 
   const submit = () => {
     track("result_feedback_submitted", { submissionId, archetype, view, value: selected, comment });
+    saveResultFeedback({
+      id: createId("fb"),
+      submissionId,
+      archetype,
+      view,
+      phase: "submitted",
+      value: selected,
+      comment,
+      created_at: new Date().toISOString(),
+    });
     setSent(true);
   };
 

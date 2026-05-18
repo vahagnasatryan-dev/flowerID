@@ -59,6 +59,19 @@ const SHEET_HEADERS = {
     "comment",
     "payload_json",
   ],
+  feedback: [
+    "received_at",
+    "feedback_id",
+    "created_at",
+    "session_id",
+    "submission_id",
+    "archetype",
+    "view",
+    "phase",
+    "value",
+    "comment",
+    "payload_json",
+  ],
 };
 
 function doPost(e) {
@@ -92,6 +105,11 @@ function doPost(e) {
       }
       if (record.kind === "request") {
         appendRequest(ss, record, receivedAt);
+        markProcessedRecord(record.id);
+        inserted += 1;
+      }
+      if (record.kind === "feedback") {
+        appendFeedback(ss, record, receivedAt);
         markProcessedRecord(record.id);
         inserted += 1;
       }
@@ -190,6 +208,24 @@ function appendRequest(ss, record, receivedAt) {
     payload.opened_at || "",
     payload.started_at || "",
     payload.completed_at || "",
+    payload.comment || "",
+    JSON.stringify(payload),
+  ]);
+}
+
+function appendFeedback(ss, record, receivedAt) {
+  const sheet = getSheet(ss, "feedback");
+  const payload = record.payload || {};
+  sheet.appendRow([
+    receivedAt,
+    payload.id || record.id || "",
+    payload.created_at || record.created_at || "",
+    record.session_id || "",
+    payload.submissionId || payload.submission_id || "",
+    payload.archetype || "",
+    payload.view || "",
+    payload.phase || "",
+    payload.value || "",
     payload.comment || "",
     JSON.stringify(payload),
   ]);

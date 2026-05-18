@@ -34,6 +34,7 @@ VITE_FLOWER_COLLECTOR_URL=https://script.google.com/macros/s/.../exec
 - `events`: просмотры шагов, старт, свайпы, выборы, завершение, sharing/order/request события.
 - `submissions`: завершенный Flower ID, ответы и computed profile.
 - `requests`: request-ссылки и их статусы.
+- `feedback`: ответы на блок результата «Похоже на тебя?» и комментарии.
 
 Как подключить Google Sheets:
 
