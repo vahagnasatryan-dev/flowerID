@@ -48,6 +48,8 @@ const scoring: Record<string, ScoreMap> = {
   airy: { paris_morning: 2, garden_romance: 2 },
   passionate: { dramatic_elegance: 3 },
   creative: { art_experiment: 3, wild_garden: 1 },
+  wild_natural: { wild_garden: 3, garden_romance: 1 },
+  minimal: { white_green_minimalism: 3, quiet_luxury: 1 },
   powder_cream: { garden_romance: 2, paris_morning: 1, quiet_luxury: 1 },
   white_green_palette: { white_green_minimalism: 3, quiet_luxury: 2 },
   peach_sun: { sunny_joy: 2, garden_romance: 1 },
@@ -72,6 +74,10 @@ const scoring: Record<string, ScoreMap> = {
   orchid: { art_experiment: 3, quiet_luxury: 1 },
   anthurium: { art_experiment: 3 },
   calla: { quiet_luxury: 2, art_experiment: 1 },
+  freesia: { paris_morning: 2, garden_romance: 1 },
+  field_flowers: { wild_garden: 3, sunny_joy: 1 },
+  lilac: { paris_morning: 2, garden_romance: 2 },
+  unknown_style: { quiet_luxury: 1 },
   protea: { art_experiment: 3, wild_garden: 1 },
   mini: { paris_morning: 1, quiet_luxury: 1 },
   medium: { garden_romance: 1, classic_femininity: 1 },
@@ -196,9 +202,16 @@ function collectPaletteColors(ids: string[], ideal?: string) {
 }
 
 function flowerLabelsByReaction(answers: Answers, reaction: "love" | "dislike" | "forbidden") {
+  const fallbackLabels: Record<string, string> = {
+    freesia: "Фрезии",
+    field_flowers: "Полевые цветы",
+    lilac: "Сирень",
+    unknown_style: "Не знаю названия, важен общий стиль",
+    dried_flowers: "Сухоцветы",
+  };
   return Object.entries(answers.flowers)
-    .filter(([, value]) => value === reaction)
-    .map(([id]) => flowerGroups.flatMap((group) => group.flowers).find((flower) => flower.id === id)?.label ?? id);
+    .filter(([id, value]) => value === reaction && id !== "none")
+    .map(([id]) => flowerGroups.flatMap((group) => group.flowers).find((flower) => flower.id === id)?.label ?? fallbackLabels[id] ?? id);
 }
 
 function emotionLabels(answers: Answers) {
@@ -210,6 +223,7 @@ function emotionLabels(answers: Answers) {
 }
 
 function formatLabel(size: string, wow: number) {
+  if (size === "depends") return "размер зависит от повода";
   const sizeLabel = sizeOptions.find((option) => option.id === size)?.label.toLowerCase() ?? "средний";
   if (wow >= 4) return `${sizeLabel} букет с заметным вау-эффектом`;
   if (wow <= 2) return `${sizeLabel} букет, удобный для дома`;

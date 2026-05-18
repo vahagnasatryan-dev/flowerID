@@ -1,13 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  allergyOptions,
   bouquetCards,
-  flowerGroups,
-  fragranceOptions,
-  longevityOptions,
   moods,
   packagingOptions,
-  packagingStopOptions,
   palettes,
   totalSteps,
 } from "./data";
@@ -57,15 +52,22 @@ const defaultAnswers: Answers = {
 
 const stepNames = [
   "start",
-  "swipes",
+  "visual_taste",
   "mood",
   "palette",
   "flowers",
-  "size",
-  "practical",
+  "stoplist",
   "packaging",
-  "associations",
-  "result",
+  "name",
+];
+const quizStepLabels = [
+  "Визуальный вкус",
+  "Настроение",
+  "Палитра",
+  "Цветы",
+  "Стоп-лист",
+  "Упаковка",
+  "Имя",
 ];
 const activeQuizKey = "flower_id_active_quiz";
 
@@ -120,8 +122,9 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
   const [answers, setAnswers] = useState<Answers>(() => loadAnswers(defaultAnswers));
   const [step, setStep] = useState(() => Math.min(loadStep(), totalSteps - 1));
   const [toast, setToast] = useState("");
+  const [isFinishing, setIsFinishing] = useState(false);
+  const [finishMessage, setFinishMessage] = useState("Мы собираем твой Flower ID...");
   const profile = useMemo(() => computeProfile(answers), [answers]);
-  const progress = Math.round((step / (totalSteps - 1)) * 100);
 
   useEffect(() => {
     saveAnswers(answers);
@@ -129,11 +132,46 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
 
   useEffect(() => {
     saveStep(step);
-    track("step_viewed", { step: stepNames[step], progress });
-  }, [step, progress]);
+    track("step_viewed", { step: stepNames[step], quiz_step: step ? step : null });
+  }, [step]);
 
   const patchAnswers = (patch: Partial<Answers>) => {
     setAnswers((current) => ({ ...current, ...patch }));
+  };
+
+  const finishQuiz = () => {
+    track("quiz_completed", { primary_archetype: profile.primary_archetype, requestId, referrerId, editingSubmissionId });
+    const existingSubmission = editingSubmissionId ? loadSubmission(editingSubmissionId) : null;
+    const id = editingSubmissionId || createId("fid");
+    const now = new Date().toISOString();
+    const submission: FlowerSubmission = {
+      id,
+      created_at: existingSubmission?.created_at || now,
+      updated_at: editingSubmissionId ? now : undefined,
+      answers,
+      computed_profile: profile,
+      source: params.get("source"),
+      referrer_id: referrerId,
+      request_id: requestId,
+    };
+    saveSubmission(submission);
+    if (requestId) {
+      const request = loadFlowerRequest(requestId);
+      if (request) {
+        saveFlowerRequest({
+          ...request,
+          status: "completed",
+          submissionId: id,
+          completed_at: new Date().toISOString(),
+        });
+        track("request_completed", { requestId, submissionId: id });
+      }
+    }
+    resetStorage();
+    clearEditingSubmission();
+    sessionStorage.removeItem(activeQuizKey);
+    onExit();
+    navigate(`/result/${id}${requestId ? `?requestId=${encodeURIComponent(requestId)}` : ""}`);
   };
 
   const next = () => {
@@ -142,40 +180,11 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
       showToast(message);
       return;
     }
-    if (step === 0) track("quiz_started");
-    if (step === 8) {
-      track("quiz_completed", { primary_archetype: profile.primary_archetype, requestId, referrerId, editingSubmissionId });
-      const existingSubmission = editingSubmissionId ? loadSubmission(editingSubmissionId) : null;
-      const id = editingSubmissionId || createId("fid");
-      const now = new Date().toISOString();
-      const submission: FlowerSubmission = {
-        id,
-        created_at: existingSubmission?.created_at || now,
-        updated_at: editingSubmissionId ? now : undefined,
-        answers,
-        computed_profile: profile,
-        source: params.get("source"),
-        referrer_id: referrerId,
-        request_id: requestId,
-      };
-      saveSubmission(submission);
-      if (requestId) {
-        const request = loadFlowerRequest(requestId);
-        if (request) {
-          saveFlowerRequest({
-            ...request,
-            status: "completed",
-            submissionId: id,
-            completed_at: new Date().toISOString(),
-          });
-          track("request_completed", { requestId, submissionId: id });
-        }
-      }
-      resetStorage();
-      clearEditingSubmission();
-      sessionStorage.removeItem(activeQuizKey);
-      onExit();
-      navigate(`/result/${id}${requestId ? `?requestId=${encodeURIComponent(requestId)}` : ""}`);
+    if (step === 7) {
+      setIsFinishing(true);
+      setFinishMessage("Мы собираем твой Flower ID...");
+      window.setTimeout(() => setFinishMessage("Готово — сейчас покажем твой цветочный профиль."), 760);
+      window.setTimeout(finishQuiz, 1450);
       return;
     }
     setStep((value) => Math.min(value + 1, totalSteps - 1));
@@ -212,7 +221,7 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
     showToast("Прогресс сброшен");
   };
 
-  const back = () => setStep((value) => (value === 6 ? 4 : Math.max(value - 1, 0)));
+  const back = () => setStep((value) => Math.max(value - 1, 1));
 
   const restart = () => {
     resetStorage();
@@ -234,10 +243,12 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
       <section className="quiz-frame">
-        <Header step={step} progress={progress} onBack={back} />
+        <Header step={step} onBack={back} />
+
+        {isFinishing && <LoadingScreen message={finishMessage} />}
 
         {step === 0 && <StartScreen onStart={startFresh} onReset={resetProgress} />}
-        {step === 1 && (
+        {!isFinishing && step === 1 && (
           <SwipeScreen
             swipes={answers.bouquet_swipes}
             onReact={(cardId, reaction) => {
@@ -247,76 +258,55 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
                   { card_id: cardId, reaction },
                 ],
               });
-              track("bouquet_swiped", { card_id: cardId, reaction });
+              track("bouquet_rated", { card_id: cardId, reaction });
             }}
-            onNext={next}
           />
         )}
-        {step === 2 && (
+        {!isFinishing && step === 2 && (
           <ChoiceScreen
-            title="Каким должен быть букет, чтобы он попал в вас?"
-            hint="Выберите до 5 настроений."
+            title="Какое настроение должно быть у твоего идеального букета?"
+            hint="Выбери до 3 вариантов."
             options={moods}
             selected={answers.mood}
-            max={5}
-            onToggle={(id) => patchAnswers({ mood: toggle(answers.mood, id, 5) })}
-            onNext={() => {
-              track("mood_selected", { selected_count: answers.mood.length });
-              next();
-            }}
+            max={3}
+            onToggle={(id) => patchAnswers({ mood: toggle(answers.mood, id, 3) })}
           />
         )}
-        {step === 3 && (
+        {!isFinishing && step === 3 && (
           <PaletteScreen
             answers={answers}
             onChange={patchAnswers}
-            onNext={() => {
-              track("palette_selected", { selected_count: answers.favorite_palettes.length });
-              next();
-            }}
           />
         )}
-        {step === 4 && (
+        {!isFinishing && step === 4 && (
           <FlowersScreen
             flowers={answers.flowers}
             onChange={(flowers) => patchAnswers({ flowers })}
-            onNext={() => {
-              track("flower_reacted", { reacted_count: Object.keys(answers.flowers).length });
-              setStep(6);
-            }}
           />
         )}
-        {step === 6 && (
+        {!isFinishing && step === 5 && (
           <PracticalScreen
             answers={answers}
             onChange={patchAnswers}
-            onNext={() => {
-              track("practical_details_completed");
-              next();
-            }}
           />
         )}
-        {step === 7 && (
+        {!isFinishing && step === 6 && (
           <PackagingScreen
             answers={answers}
             onChange={patchAnswers}
-            onNext={() => {
-              track("packaging_selected", { selected_count: answers.packaging.length });
-              next();
-            }}
           />
         )}
-        {step === 8 && <AssociationsScreen answers={answers} onChange={patchAnswers} onNext={next} />}
-        {step === 9 && (
-          <ResultScreen
-            answers={answers}
-            profile={profile}
-            context="own"
-            submissionId=""
-            requestId={requestId}
-            navigate={navigate}
-            onRestart={restart}
-            onToast={showToast}
+        {!isFinishing && step === 7 && <NameScreen answers={answers} onChange={patchAnswers} />}
+        {!isFinishing && step > 0 && (
+          <QuizNav
+            step={step}
+            onBack={back}
+            onNext={() => {
+              track(`${stepNames[step]}_continued`, stepEventPayload(step, answers));
+              next();
+            }}
+            nextDisabled={Boolean(validateStep(step, answers))}
+            nextLabel={step === 7 ? "Показать мой Flower ID" : "Дальше"}
           />
         )}
       </section>
@@ -488,7 +478,7 @@ function StoredResultPage({ submissionId, navigate }: { submissionId: string; na
   return (
     <main className="app-shell">
       <section className="quiz-frame">
-        <Header step={9} progress={100} onBack={() => navigate("/")} />
+        <Header step={8} onBack={() => navigate("/")} />
         <ResultScreen
           answers={submission.answers}
           profile={submission.computed_profile}
@@ -537,7 +527,7 @@ function MyFlowerIdPage({ navigate, startQuiz }: { navigate: (url: string) => vo
   return (
     <main className="app-shell">
       <section className="quiz-frame">
-        <Header step={0} progress={0} onBack={() => navigate("/")} />
+        <Header step={0} onBack={() => navigate("/")} />
         <section className="screen">
           <p className="eyebrow">Мои Flower ID</p>
           <h1>Сохраненные профили</h1>
@@ -596,7 +586,7 @@ function RequestPage({ navigate }: { navigate: (url: string) => void }) {
     return (
       <main className="app-shell">
         <section className="quiz-frame">
-          <Header step={0} progress={0} onBack={() => navigate("/")} />
+          <Header step={0} onBack={() => navigate("/")} />
           <section className="screen">
             <p className="eyebrow">Запрос Flower ID</p>
             <h1>Ссылка-запрос готова</h1>
@@ -618,7 +608,7 @@ function RequestPage({ navigate }: { navigate: (url: string) => void }) {
   return (
     <main className="app-shell">
       <section className="quiz-frame">
-        <Header step={0} progress={0} onBack={() => navigate("/")} />
+        <Header step={0} onBack={() => navigate("/")} />
         <section className="screen">
           <p className="eyebrow">Для дарителя</p>
           <h1>Узнай Flower ID человека, которому хочешь подарить цветы</h1>
@@ -686,7 +676,7 @@ function RecipientRequestPage({ requestToken, navigate }: { requestToken: string
   return (
     <main className="app-shell">
       <section className="quiz-frame">
-        <Header step={0} progress={0} onBack={() => navigate("/")} />
+        <Header step={0} onBack={() => navigate("/")} />
         <section className="screen hero-screen">
           <p className="eyebrow">Тебе отправили запрос</p>
           <h1>{request.requesterName ? `${request.requesterName} хочет узнать твой Flower ID` : "У тебя запросили Flower ID"}</h1>
@@ -733,7 +723,7 @@ function MetricsDebugPage({ navigate }: { navigate: (url: string) => void }) {
   return (
     <main className="app-shell">
       <section className="quiz-frame">
-        <Header step={0} progress={0} onBack={() => navigate("/")} />
+        <Header step={0} onBack={() => navigate("/")} />
         <section className="screen">
           <p className="eyebrow">Диагностика</p>
           <h1>Сбор метрик</h1>
@@ -761,39 +751,31 @@ function MetricsDebugPage({ navigate }: { navigate: (url: string) => void }) {
   );
 }
 
-function Header({ step, progress, onBack }: { step: number; progress: number; onBack: () => void }) {
+function Header({ step, onBack }: { step: number; onBack: () => void }) {
   if (step === 0) {
     return (
       <header className="topbar start-topbar">
         <span className="brand-mark">Flower ID</span>
-        <span className="start-topbar-note">3 минуты · без скучной анкеты</span>
+        <span className="start-topbar-note">2 минуты · без анкеты</span>
       </header>
     );
   }
 
-  const microcopy =
-    step < 2
-      ? "Ваш портрет только раскрывается"
-      : step < 4
-        ? "Палитра начинает проявляться"
-        : step < 7
-          ? "Мы уже чувствуем ваш стиль"
-          : step < 9
-            ? "Финальные штрихи"
-            : "Портрет готов";
+  const activeStep = Math.min(Math.max(step, 1), quizStepLabels.length);
+  const label = quizStepLabels[activeStep - 1] ?? "Flower ID";
 
   return (
     <header className="topbar">
       <button className="icon-button" onClick={onBack} disabled={step === 0} aria-label="Назад">
         <span aria-hidden="true">‹</span>
       </button>
-      <div className="progress-wrap" aria-label={`Готово ${progress}%`}>
-        <span>{microcopy}</span>
+      <div className="progress-wrap" aria-label={`Шаг ${activeStep} из 7`}>
+        <span>Шаг {activeStep} из 7</span>
         <div className="progress-track">
-          <div className="progress-fill" style={{ width: `${progress}%` }} />
+          <div className="progress-fill" style={{ width: `${(activeStep / quizStepLabels.length) * 100}%` }} />
         </div>
       </div>
-      <span className="step-count">{progress}%</span>
+      <span className="step-count">{label}</span>
     </header>
   );
 }
@@ -912,103 +894,35 @@ function StartScreen({ onStart, onReset }: { onStart: () => void; onReset: () =>
 function SwipeScreen({
   swipes,
   onReact,
-  onNext,
 }: {
   swipes: Answers["bouquet_swipes"];
   onReact: (cardId: string, reaction: Reaction) => void;
-  onNext: () => void;
 }) {
-  const index = Math.min(swipes.length, bouquetCards.length - 1);
+  const firstUnrated = bouquetCards.findIndex((card) => !swipes.some((swipe) => swipe.card_id === card.id));
+  const [index, setIndex] = useState(firstUnrated === -1 ? bouquetCards.length - 1 : firstUnrated);
   const current = bouquetCards[index];
-  const completed = swipes.length >= bouquetCards.length;
-  const dragStart = useRef<{ x: number; y: number } | null>(null);
-  const swipeCommitted = useRef(false);
-  const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
-
-  useEffect(() => {
-    swipeCommitted.current = false;
-    setDrag({ x: 0, y: 0, active: false });
-  }, [current.id]);
-
-  useEffect(() => {
-    if (!completed) return;
-    const timer = window.setTimeout(onNext, 520);
-    return () => window.clearTimeout(timer);
-  }, [completed, onNext]);
+  const completed = index >= bouquetCards.length;
+  const ratedCount = swipes.length;
 
   const react = (reaction: Reaction) => {
-    if (!completed && !swipeCommitted.current) {
-      swipeCommitted.current = true;
-      onReact(current.id, reaction);
-    }
-  };
-
-  const finishSwipe = (dx: number, dy: number) => {
-    dragStart.current = null;
-    setDrag({ x: 0, y: 0, active: false });
-    if (Math.abs(dx) < 58 && Math.abs(dy) < 58) return;
-    if (Math.abs(dx) > Math.abs(dy)) react(dx > 0 ? "like" : "dislike");
-    else react(dy < 0 ? "love" : "hard_no");
+    if (completed) return;
+    onReact(current.id, reaction);
+    setIndex((value) => Math.min(value + 1, bouquetCards.length));
   };
 
   return (
-    <section className="screen">
+    <section className="screen quiz-screen">
       <p className="eyebrow">Визуальный стиль</p>
-      <h2>Выберите букеты, которые вам нравятся</h2>
-      <p className="hint">Потяните карточку в сторону реакции. Можно двигать быстро: как только жест понятен, появится следующий букет.</p>
-      <div className="swipe-coach" aria-label="Направления свайпа">
-        <span className="coach-pill coach-top">Вау</span>
-        <span className="coach-pill coach-left">Не мое</span>
-        <div className="coach-card">
-          <span>Потяните</span>
-        </div>
-        <span className="coach-pill coach-right">Нравится</span>
-        <span className="coach-pill coach-bottom">Точно нет</span>
-      </div>
+      <h2>Какие букеты тебе визуально ближе?</h2>
+      <p className="hint">Оцени минимум 5 карточек. Остальные можно пропустить.</p>
+      {!completed && <p className="card-step-count">Карточка {index + 1} из {bouquetCards.length}</p>}
       <div className="swipe-area">
         {!completed ? (
           <article
             className="bouquet-card"
-            style={{
-              ...bouquetPhotoStyle(index),
-              transform: `translate(${drag.x}px, ${drag.y}px) rotate(${drag.x / 18}deg)`,
-              transition: drag.active ? "none" : "transform 180ms ease",
-            }}
-            onPointerDown={(event) => {
-              dragStart.current = { x: event.clientX, y: event.clientY };
-              setDrag({ x: 0, y: 0, active: true });
-              event.currentTarget.setPointerCapture(event.pointerId);
-            }}
-            onPointerMove={(event) => {
-              if (!dragStart.current) return;
-              event.preventDefault();
-              if (swipeCommitted.current) return;
-              const dx = event.clientX - dragStart.current.x;
-              const dy = event.clientY - dragStart.current.y;
-              setDrag({
-                x: dx,
-                y: dy,
-                active: true,
-              });
-              if (Math.max(Math.abs(dx), Math.abs(dy)) > 130) {
-                finishSwipe(dx, dy);
-              }
-            }}
-            onPointerUp={(event) => {
-              if (!dragStart.current) return;
-              const dx = event.clientX - dragStart.current.x;
-              const dy = event.clientY - dragStart.current.y;
-              finishSwipe(dx, dy);
-            }}
-            onPointerCancel={() => {
-              dragStart.current = null;
-              setDrag({ x: 0, y: 0, active: false });
-            }}
+            style={bouquetPhotoStyle(index)}
           >
             <div>
-              <span className="card-number">
-                {index + 1} / {bouquetCards.length}
-              </span>
               <h3>{current.title}</h3>
               <p>{current.tags.join(" · ")}</p>
             </div>
@@ -1020,6 +934,19 @@ function SwipeScreen({
           </div>
         )}
       </div>
+      {!completed && (
+        <div className="bouquet-choice-actions">
+          <button type="button" onClick={() => react("love")}>Вау</button>
+          <button type="button" onClick={() => react("like")}>Нравится</button>
+          <button type="button" onClick={() => react("dislike")}>Не моё</button>
+        </div>
+      )}
+      {!completed && (
+        <button className="text-button skip-card-button" type="button" onClick={() => setIndex((value) => Math.min(value + 1, bouquetCards.length))}>
+          Пропустить карточку
+        </button>
+      )}
+      <p className="subtle">Оценено {ratedCount} из 5 минимум</p>
     </section>
   );
 }
@@ -1031,7 +958,6 @@ function ChoiceScreen({
   selected,
   max,
   onToggle,
-  onNext,
 }: {
   title: string;
   hint: string;
@@ -1039,10 +965,9 @@ function ChoiceScreen({
   selected: string[];
   max?: number;
   onToggle: (id: string) => void;
-  onNext: () => void;
 }) {
   return (
-    <section className="screen">
+    <section className="screen quiz-screen">
       <p className="eyebrow">Настроение</p>
       <h2>{title}</h2>
       <p className="hint">{hint}</p>
@@ -1058,7 +983,6 @@ function ChoiceScreen({
         ))}
       </div>
       {max && <p className="subtle">Выбрано {selected.length} из {max}</p>}
-      <button className="primary-button" onClick={onNext}>Дальше</button>
     </section>
   );
 }
@@ -1066,49 +990,49 @@ function ChoiceScreen({
 function PaletteScreen({
   answers,
   onChange,
-  onNext,
 }: {
   answers: Answers;
   onChange: (patch: Partial<Answers>) => void;
-  onNext: () => void;
 }) {
-  const markPalette = (id: string, mode: "favorite" | "ideal" | "reject" | "clear") => {
-    const favorite_palettes = answers.favorite_palettes.filter((item) => item !== id);
-    const rejected_palettes = answers.rejected_palettes.filter((item) => item !== id);
-    if (mode === "clear") {
-      onChange({ favorite_palettes, rejected_palettes, ideal_palette: answers.ideal_palette === id ? "" : answers.ideal_palette });
+  const togglePalette = (id: string) => {
+    const isUnknown = id === "florist_palette";
+    if (isUnknown) {
+      onChange({ favorite_palettes: answers.favorite_palettes.includes(id) ? [] : [id], ideal_palette: "", rejected_palettes: [] });
+      return;
     }
-    if (mode === "favorite") onChange({ favorite_palettes: [...favorite_palettes, id], rejected_palettes });
-    if (mode === "ideal")
-      onChange({ ideal_palette: answers.ideal_palette === id ? "" : id, favorite_palettes: [...favorite_palettes, id], rejected_palettes });
-    if (mode === "reject")
-      onChange({ rejected_palettes: [...rejected_palettes, id], favorite_palettes, ideal_palette: answers.ideal_palette === id ? "" : answers.ideal_palette });
+    const selected = answers.favorite_palettes.filter((item) => item !== "florist_palette");
+    onChange({
+      favorite_palettes: toggle(selected, id, 3),
+      ideal_palette: "",
+      rejected_palettes: [],
+    });
   };
+  const paletteOptions = [...palettes, { id: "florist_palette", label: "Не знаю, пусть подберёт флорист", colors: ["#f8f4ef", "#d9cec2", "#9db4a2"], description: "" }];
 
   return (
-    <section className="screen">
+    <section className="screen quiz-screen">
       <p className="eyebrow">Палитра</p>
-      <h2>Какие оттенки вам ближе?</h2>
-      <p className="hint">Посмотрите оттенки и выберите одну из трех реакций для каждой палитры.</p>
+      <h2>Какие оттенки тебе ближе?</h2>
+      <p className="hint">Выбери до 3 палитр, которые тебе приятно получать в букете.</p>
       <div className="palette-board">
-        {palettes.map((palette) => (
-          <article key={palette.id} className={`palette-tile ${paletteState(answers, palette.id)}`}>
-            <div className="palette-main">
+        {paletteOptions.map((palette) => (
+          <button
+            key={palette.id}
+            type="button"
+            className={`palette-tile ${answers.favorite_palettes.includes(palette.id) ? "favorite" : ""}`}
+            onClick={() => togglePalette(palette.id)}
+          >
+            <span className="palette-main">
               <div className="swatches">
                 {palette.colors?.map((color) => <i key={color} style={{ background: color }} />)}
               </div>
               <span>{palette.label}</span>
-              <small>{palette.description}</small>
-            </div>
-            <div className="palette-actions">
-              <button onClick={() => markPalette(palette.id, "ideal")} className={answers.ideal_palette === palette.id ? "active" : ""}>Идеально</button>
-              <button onClick={() => markPalette(palette.id, "favorite")} className={answers.favorite_palettes.includes(palette.id) && answers.ideal_palette !== palette.id ? "active" : ""}>Нравится</button>
-              <button onClick={() => markPalette(palette.id, "reject")} className={answers.rejected_palettes.includes(palette.id) ? "danger active" : ""}>Не мое</button>
-            </div>
-          </article>
+              {palette.description && <small>{palette.description}</small>}
+            </span>
+          </button>
         ))}
       </div>
-      <button className="primary-button" onClick={onNext}>Дальше</button>
+      <p className="subtle">Выбрано {answers.favorite_palettes.filter((id) => id !== "florist_palette").length} из 3</p>
     </section>
   );
 }
@@ -1116,48 +1040,90 @@ function PaletteScreen({
 function FlowersScreen({
   flowers,
   onChange,
-  onNext,
 }: {
   flowers: Answers["flowers"];
   onChange: (flowers: Answers["flowers"]) => void;
-  onNext: () => void;
 }) {
-  const setReaction = (id: string, reaction: FlowerReaction) => onChange({ ...flowers, [id]: reaction });
+  const likedFlowerOptions: Option[] = [
+    { id: "peony", label: "Пионы" },
+    { id: "garden_rose", label: "Пионовидные розы" },
+    { id: "ranunculus", label: "Ранункулюсы" },
+    { id: "anemone", label: "Анемоны" },
+    { id: "tulip", label: "Тюльпаны" },
+    { id: "hydrangea", label: "Гортензии" },
+    { id: "freesia", label: "Фрезии" },
+    { id: "orchid", label: "Орхидеи" },
+    { id: "calla", label: "Каллы" },
+    { id: "field_flowers", label: "Полевые цветы" },
+    { id: "lilac", label: "Сирень" },
+    { id: "unknown_style", label: "Не знаю названия, важен общий стиль" },
+  ];
+  const avoidFlowerOptions: Option[] = [
+    { id: "rose", label: "Красные розы" },
+    { id: "chrysanthemum", label: "Хризантемы" },
+    { id: "carnation", label: "Гвоздики" },
+    { id: "lily", label: "Лилии" },
+    { id: "gerbera", label: "Герберы" },
+    { id: "orchid", label: "Орхидеи" },
+    { id: "dried_flowers", label: "Сухоцветы" },
+    { id: "none", label: "Нет таких" },
+  ];
+  const loved = Object.entries(flowers).filter(([, value]) => value === "love").map(([id]) => id);
+  const forbidden = Object.entries(flowers).filter(([, value]) => value === "forbidden").map(([id]) => id);
+  const setReaction = (id: string, reaction: FlowerReaction) => {
+    const nextFlowers = { ...flowers };
+    if (id === "none") {
+      avoidFlowerOptions.forEach((option) => {
+        if (option.id !== "none") delete nextFlowers[option.id];
+      });
+      nextFlowers.none = nextFlowers.none === "forbidden" ? "neutral" : "forbidden";
+      onChange(nextFlowers);
+      return;
+    }
+    delete nextFlowers.none;
+    if (nextFlowers[id] === reaction) delete nextFlowers[id];
+    else nextFlowers[id] = reaction;
+    onChange(nextFlowers);
+  };
+
   return (
-    <section className="screen">
-      <p className="eyebrow">Цветочный кастинг</p>
-      <h2>Кого берем в ваш букет?</h2>
-      <p className="hint">Отметьте цветы, которые любите, и те, которые точно не стоит использовать.</p>
-      {flowerGroups.map((group, groupIndex) => (
-        <div className="flower-group" key={group.title}>
-          <div className="flower-list">
-            {group.flowers.map((flower, flowerIndex) => {
-              const photoIndex = groupIndex * 5 + flowerIndex;
-              return (
-              <article key={flower.id} className="flower-card">
-                <div className="flower-photo" style={flowerPhotoStyle(photoIndex)} aria-hidden="true" />
-                <div className="flower-copy">
-                  <strong>{flower.label}</strong>
-                  <span>{flowerSubtitle(flower.id)}</span>
-                </div>
-                <div className="flower-actions">
-                  {(["love", "neutral", "dislike", "forbidden"] as FlowerReaction[]).map((reaction) => (
-                    <button
-                      key={reaction}
-                      className={flowers[flower.id] === reaction ? "active" : ""}
-                      onClick={() => setReaction(flower.id, reaction)}
-                    >
-                      {flowerReactionLabel(reaction)}
-                    </button>
-                  ))}
-                </div>
-              </article>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-      <button className="primary-button" onClick={onNext}>Дальше</button>
+    <section className="screen quiz-screen">
+      <p className="eyebrow">Цветы</p>
+      <h2>Какие цветы тебе особенно нравятся?</h2>
+      <p className="hint">Выбери до 5. Можно пропустить.</p>
+      <div className="chip-grid roomy-chips">
+        {likedFlowerOptions.map((flower) => (
+          <button
+            key={flower.id}
+            type="button"
+            className={flowers[flower.id] === "love" ? "selected" : ""}
+            onClick={() => {
+              if (flowers[flower.id] !== "love" && loved.length >= 5) return;
+              setReaction(flower.id, "love");
+            }}
+          >
+            {flower.label}
+          </button>
+        ))}
+      </div>
+      <p className="subtle">Выбрано {loved.length} из 5</p>
+
+      <div className="section-divider" />
+      <h2 className="compact-heading">Есть цветы, которые лучше не дарить?</h2>
+      <p className="hint">Выбери, если есть.</p>
+      <div className="chip-grid roomy-chips">
+        {avoidFlowerOptions.map((flower) => (
+          <button
+            key={flower.id}
+            type="button"
+            className={flowers[flower.id] === "forbidden" ? "selected" : ""}
+            onClick={() => setReaction(flower.id, "forbidden")}
+          >
+            {flower.label}
+          </button>
+        ))}
+      </div>
+      <p className="subtle">{forbidden.filter((id) => id !== "none").length ? "Стоп-лист цветов сохранён." : "Этот блок можно пропустить."}</p>
     </section>
   );
 }
@@ -1165,39 +1131,80 @@ function FlowersScreen({
 function PracticalScreen({
   answers,
   onChange,
-  onNext,
 }: {
   answers: Answers;
   onChange: (patch: Partial<Answers>) => void;
-  onNext: () => void;
 }) {
   const setAllergy = (id: string) => {
+    const fragrance = id === "scent_sensitive" ? "sensitive" : id === "none" ? "light" : answers.fragrance;
     onChange({
+      fragrance,
       allergies: {
-        has_allergy: id !== "none",
+        has_allergy: id === "allergy",
         kind: id,
-        comment: id === "none" ? "" : answers.allergies.comment,
+        comment: id === "allergy" ? answers.allergies.comment : "",
       },
     });
   };
+  const stopOptions: Option[] = [
+    { id: "too_bright", label: "Слишком яркие букеты" },
+    { id: "too_colorful", label: "Слишком пёстрые букеты" },
+    { id: "red_roses", label: "Красные розы" },
+    { id: "too_much_wrap", label: "Много упаковки" },
+    { id: "sparkles", label: "Блёстки, стразы, декор" },
+    { id: "strong_scent", label: "Сильный аромат" },
+    { id: "lily", label: "Лилии" },
+    { id: "too_large", label: "Слишком большие букеты" },
+    { id: "too_simple", label: "Слишком простые букеты" },
+    { id: "no_hard_bans", label: "Нет жёстких запретов" },
+  ];
+  const allergyChoices: Option[] = [
+    { id: "none", label: "Нет" },
+    { id: "scent_sensitive", label: "Да, лучше без сильного аромата" },
+    { id: "allergy", label: "Да, есть аллергии" },
+    { id: "unknown", label: "Не знаю" },
+  ];
+  const toggleStop = (id: string) => {
+    if (id === "no_hard_bans") {
+      onChange({ packaging_stoplist: answers.packaging_stoplist.includes(id) ? [] : [id], flowers: { ...answers.flowers } });
+      return;
+    }
+    const current = answers.packaging_stoplist.filter((item) => item !== "no_hard_bans");
+    onChange({ packaging_stoplist: toggle(current, id) });
+    if (id === "lily" || id === "red_roses") {
+      onChange({ packaging_stoplist: toggle(current, id), flowers: { ...answers.flowers, [id === "lily" ? "lily" : "rose"]: "forbidden" } });
+    }
+    if (id === "strong_scent") {
+      onChange({ packaging_stoplist: toggle(current, id), fragrance: "sensitive" });
+    }
+  };
 
   return (
-    <section className="screen">
-      <p className="eyebrow">Практичные детали</p>
-      <h2>Пара практичных деталей</h2>
-      <p className="hint">Чтобы букет был не только красивым, но и комфортным.</p>
-      <FieldSet title="Аромат" options={fragranceOptions} selected={answers.fragrance} onSelect={(fragrance) => onChange({ fragrance })} />
-      <FieldSet title="Стойкость" options={longevityOptions} selected={answers.longevity} onSelect={(longevity) => onChange({ longevity })} />
-      <FieldSet title="Аллергии" options={allergyOptions} selected={answers.allergies.kind} onSelect={setAllergy} />
+    <section className="screen quiz-screen">
+      <p className="eyebrow">Стоп-лист</p>
+      <h2>Что точно лучше не дарить?</h2>
+      <p className="hint">Это поможет близким не ошибиться.</p>
+      <div className="chip-grid roomy-chips">
+        {stopOptions.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className={answers.packaging_stoplist.includes(option.id) ? "selected" : ""}
+            onClick={() => toggleStop(option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <FieldSet title="Есть аллергии или чувствительность к запахам?" options={allergyChoices} selected={answers.allergies.kind} onSelect={setAllergy} />
       {answers.allergies.has_allergy && (
         <textarea
           className="text-area"
-          placeholder="Если хотите, уточните аллергию или ограничения"
+          placeholder="Напиши, чего точно избегать"
           value={answers.allergies.comment}
           onChange={(event) => onChange({ allergies: { ...answers.allergies, comment: event.target.value } })}
         />
       )}
-      <button className="primary-button" onClick={onNext}>Дальше</button>
     </section>
   );
 }
@@ -1205,58 +1212,61 @@ function PracticalScreen({
 function PackagingScreen({
   answers,
   onChange,
-  onNext,
 }: {
   answers: Answers;
   onChange: (patch: Partial<Answers>) => void;
-  onNext: () => void;
 }) {
+  const sizeOptionsLite: Option[] = [
+    { id: "mini", label: "Небольшой аккуратный" },
+    { id: "medium", label: "Средний красивый" },
+    { id: "large", label: "Большой вау-букет" },
+    { id: "depends", label: "Зависит от повода" },
+  ];
+  const togglePackaging = (id: string) => onChange({ packaging: toggle(answers.packaging, id, 2) });
+
   return (
-    <section className="screen">
+    <section className="screen quiz-screen">
       <p className="eyebrow">Подача</p>
-      <h2>Как вам приятнее получить букет?</h2>
-      <MultiField title="Варианты подачи" options={packagingOptions} selected={answers.packaging} onToggle={(id) => onChange({ packaging: toggle(answers.packaging, id) })} />
-      <MultiField title="Что точно не ваше?" options={packagingStopOptions} selected={answers.packaging_stoplist} onToggle={(id) => onChange({ packaging_stoplist: toggle(answers.packaging_stoplist, id) })} />
-      <button className="primary-button" onClick={onNext}>Дальше</button>
+      <h2>Какая подача тебе ближе?</h2>
+      <p className="hint">Выбери 1–2 варианта.</p>
+      <MultiField title="Упаковка" options={packagingOptions} selected={answers.packaging} onToggle={togglePackaging} />
+      <FieldSet title="Какой размер букета тебе ближе?" options={sizeOptionsLite} selected={answers.size} onSelect={(size) => onChange({ size, wow_vs_practical: size === "large" ? 5 : 3 })} />
     </section>
   );
 }
 
-function AssociationsScreen({
+function NameScreen({
   answers,
   onChange,
-  onNext,
 }: {
   answers: Answers;
   onChange: (patch: Partial<Answers>) => void;
-  onNext: () => void;
 }) {
   return (
-    <section className="screen">
-      <p className="eyebrow">Финальные штрихи</p>
-      <h2>Комментарий для флориста</h2>
-      <p className="hint">Напишите любой комментарий, который поможет собрать для вас идеальный букет.</p>
-      <textarea
-        className="text-area note-input"
-        placeholder="Например: люблю свободную форму, без сильного запаха, лучше нежно и не слишком торжественно"
-        value={answers.personal_note}
-        onChange={(event) => onChange({ personal_note: event.target.value })}
-      />
+    <section className="screen quiz-screen name-screen">
+      <p className="eyebrow">Финал</p>
+      <h2>Почти готово</h2>
+      <p className="hint">Как тебя зовут, чтобы мы красиво оформили твой Flower ID?</p>
       <div className="contact-panel">
         <label>
           Имя
-          <input value={answers.user.name} onChange={(event) => onChange({ user: { ...answers.user, name: event.target.value } })} placeholder="Анна" />
-        </label>
-        <label>
-          Телефон или Telegram
           <input
-            value={answers.user.telegram || answers.user.phone}
-            onChange={(event) => onChange({ user: { ...answers.user, telegram: event.target.value } })}
-            placeholder="@username"
+            value={answers.user.name}
+            onChange={(event) => onChange({ user: { ...answers.user, name: event.target.value } })}
+            placeholder="Имя"
           />
         </label>
       </div>
-      <button className="primary-button" onClick={onNext}>Собрать портрет</button>
+      <p className="subtle">Регистрация не нужна. Результатом можно поделиться.</p>
+    </section>
+  );
+}
+
+function LoadingScreen({ message }: { message: string }) {
+  return (
+    <section className="screen quiz-screen loading-screen">
+      <div className="loading-flower" aria-hidden="true" />
+      <h2>{message}</h2>
     </section>
   );
 }
@@ -1417,15 +1427,48 @@ function MultiField({
   );
 }
 
+function QuizNav({
+  step,
+  onBack,
+  onNext,
+  nextDisabled,
+  nextLabel,
+}: {
+  step: number;
+  onBack: () => void;
+  onNext: () => void;
+  nextDisabled: boolean;
+  nextLabel: string;
+}) {
+  return (
+    <nav className="quiz-nav" aria-label="Навигация по квизу">
+      <button className="secondary-button" type="button" onClick={onBack} disabled={step === 1}>
+        Назад
+      </button>
+      <button className="primary-button" type="button" onClick={onNext} disabled={nextDisabled}>
+        {nextLabel}
+      </button>
+    </nav>
+  );
+}
+
 function validateStep(step: number, answers: Answers) {
-  if (step === 1 && answers.bouquet_swipes.length < bouquetCards.length) return "Разберите все 12 букетов, чтобы мы точнее поняли стиль.";
+  if (step === 1 && answers.bouquet_swipes.length < 5) return "Оцени хотя бы 5 букетов — этого хватит для профиля.";
   if (step === 2 && answers.mood.length < 1) return "Выберите хотя бы одно настроение.";
-  if (step === 3 && !answers.favorite_palettes.length && !answers.ideal_palette && !answers.rejected_palettes.length) return "Отметьте хотя бы одну палитру.";
-  if (step === 4 && !Object.keys(answers.flowers).length) return "Отметьте хотя бы один цветок.";
-  if (step === 6 && (!answers.fragrance || !answers.longevity)) return "Выберите аромат и стойкость.";
-  if (step === 7 && !answers.packaging.length) return "Выберите подачу или доверие флористу.";
-  if (step === 8 && !answers.user.name.trim()) return "Добавьте имя, чтобы красиво подписать портрет.";
+  if (step === 6 && !answers.packaging.length) return "Выберите подачу или доверие флористу.";
+  if (step === 7 && !answers.user.name.trim()) return "Добавьте имя, чтобы красиво подписать портрет.";
   return "";
+}
+
+function stepEventPayload(step: number, answers: Answers) {
+  if (step === 1) return { rated_count: answers.bouquet_swipes.length };
+  if (step === 2) return { selected_count: answers.mood.length };
+  if (step === 3) return { selected_count: answers.favorite_palettes.length };
+  if (step === 4) return { reacted_count: Object.keys(answers.flowers).length };
+  if (step === 5) return { stoplist_count: answers.packaging_stoplist.length, allergy: answers.allergies.kind };
+  if (step === 6) return { selected_count: answers.packaging.length, size: answers.size };
+  if (step === 7) return { has_name: Boolean(answers.user.name.trim()) };
+  return {};
 }
 
 function paletteState(answers: Answers, id: string) {

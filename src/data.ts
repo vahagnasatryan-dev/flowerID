@@ -1,6 +1,6 @@
 import type { ArchetypeId, BouquetCard, Option } from "./types";
 
-export const totalSteps = 10;
+export const totalSteps = 8;
 
 export const archetypeTitles: Record<ArchetypeId, string> = {
   garden_romance: "Нежная садовая романтика",
@@ -174,18 +174,14 @@ export const bouquetCards: BouquetCard[] = [
 ];
 
 export const moods: Option[] = [
-  { id: "gentle", label: "Нежный" },
-  { id: "caring", label: "Заботливый" },
-  { id: "romantic", label: "Романтичный" },
-  { id: "quiet_expensive", label: "Дорогой и сдержанный" },
+  { id: "airy", label: "Нежный и воздушный" },
+  { id: "elegant", label: "Элегантный и сдержанный" },
   { id: "bright_joy", label: "Яркий и радостный" },
-  { id: "unusual", label: "Необычный" },
-  { id: "elegant", label: "Элегантный" },
-  { id: "wow", label: "Вау-эффектный" },
-  { id: "cozy", label: "Уютный" },
-  { id: "airy", label: "Легкий и воздушный" },
-  { id: "passionate", label: "Страстный" },
-  { id: "creative", label: "Творческий" },
+  { id: "romantic", label: "Романтичный" },
+  { id: "wild_natural", label: "Природный и живой" },
+  { id: "creative", label: "Необычный и артистичный" },
+  { id: "quiet_expensive", label: "Премиальный и дорогой" },
+  { id: "minimal", label: "Минималистичный" },
 ];
 
 export const palettes: Option[] = [
@@ -244,25 +240,26 @@ export const allergyOptions: Option[] = [
 ];
 
 export const packagingOptions: Option[] = [
-  { id: "ribbon", label: "Только лента" },
-  { id: "kraft", label: "Крафт/натуральная упаковка" },
-  { id: "matte_paper", label: "Премиальная матовая бумага" },
-  { id: "film", label: "Прозрачная стильная пленка" },
-  { id: "box", label: "Коробка" },
-  { id: "basket", label: "Корзина" },
-  { id: "vase", label: "Композиция в вазе" },
-  { id: "florist_choice", label: "Доверяю флористу" },
+  { id: "minimal_wrap", label: "Минималистичная упаковка" },
+  { id: "kraft", label: "Натуральная / крафт" },
+  { id: "quiet_luxury_wrap", label: "Премиальная и сдержанная" },
+  { id: "romantic_wrap", label: "Романтичная" },
+  { id: "ribbon", label: "Без лишней упаковки" },
+  { id: "florist_choice", label: "Флорист может выбрать сам" },
 ];
 
 export const packagingStopOptions: Option[] = [
-  "Блестки",
-  "Банты",
-  "Сетка",
-  "Яркая упаковка",
-  "Слишком много декора",
-  "Шаблонные открытки",
-  "Искусственные элементы",
-].map((label) => ({ id: slug(label), label }));
+  { id: "too_bright", label: "Слишком яркие букеты" },
+  { id: "too_colorful", label: "Слишком пёстрые букеты" },
+  { id: "red_roses", label: "Красные розы" },
+  { id: "too_much_wrap", label: "Много упаковки" },
+  { id: "sparkles", label: "Блёстки, стразы, декор" },
+  { id: "strong_scent", label: "Сильный аромат" },
+  { id: "lily", label: "Лилии" },
+  { id: "too_large", label: "Слишком большие букеты" },
+  { id: "too_simple", label: "Слишком простые букеты" },
+  { id: "no_hard_bans", label: "Нет жёстких запретов" },
+];
 
 export const associationOptions: Option[] = [
   "Море",
