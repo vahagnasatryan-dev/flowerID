@@ -152,6 +152,9 @@ function appendEvent(ss, record, receivedAt) {
     eventPayload.submissionId || eventPayload.submission_id || "",
     JSON.stringify(eventPayload),
   ]);
+  if (payload.event_name === "result_feedback_clicked" || payload.event_name === "result_feedback_submitted") {
+    appendFeedbackFromEvent(ss, record, payload, eventPayload, receivedAt);
+  }
 }
 
 function appendSubmission(ss, record, receivedAt) {
@@ -228,6 +231,23 @@ function appendFeedback(ss, record, receivedAt) {
     payload.value || "",
     payload.comment || "",
     JSON.stringify(payload),
+  ]);
+}
+
+function appendFeedbackFromEvent(ss, record, payload, eventPayload, receivedAt) {
+  const sheet = getSheet(ss, "feedback");
+  sheet.appendRow([
+    receivedAt,
+    payload.id || record.id || "",
+    payload.created_at || record.created_at || "",
+    record.session_id || payload.session_id || "",
+    eventPayload.submissionId || eventPayload.submission_id || "",
+    eventPayload.archetype || "",
+    eventPayload.view || "",
+    payload.event_name === "result_feedback_submitted" ? "submitted" : "clicked",
+    eventPayload.value || "",
+    eventPayload.comment || "",
+    JSON.stringify(eventPayload),
   ]);
 }
 

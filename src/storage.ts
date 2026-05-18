@@ -117,7 +117,6 @@ export function loadFlowerRequests(): Record<string, FlowerRequest> {
 export function saveResultFeedback(feedback: ResultFeedbackRecord) {
   const feedbackRecords = loadResultFeedback();
   localStorage.setItem(feedbackKey, JSON.stringify({ ...feedbackRecords, [feedback.id]: feedback }));
-  enqueueCollectorRecord("feedback", feedback.id, feedback as unknown as Record<string, unknown>);
 }
 
 export function loadResultFeedback(): Record<string, ResultFeedbackRecord> {
