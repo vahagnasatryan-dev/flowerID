@@ -705,7 +705,6 @@ function RequestStatusPage({
   initialLink?: string;
 }) {
   const [tick, setTick] = useState(0);
-  const [toast, setToast] = useState("");
   const [syncMessage, setSyncMessage] = useState("");
   const request = useMemo(() => loadFlowerRequest(requestId), [requestId, tick]);
   const submission = useMemo(() => (request?.submissionId ? loadSubmission(request.submissionId) : null), [request?.submissionId, tick]);
@@ -746,13 +745,6 @@ function RequestStatusPage({
     };
   }, [request?.status, request?.submissionId, requestId, tick]);
 
-  const copy = async (text: string, eventName: string) => {
-    await navigator.clipboard.writeText(text);
-    track(eventName, { requestId, status: request?.status });
-    setToast("Скопировано");
-    window.setTimeout(() => setToast(""), 2200);
-  };
-
   if (!request) {
     return (
       <EmptyState
@@ -787,8 +779,10 @@ function RequestStatusPage({
                   <p>{submission.computed_profile.description}</p>
                 </div>
                 <div className="saved-id-actions">
-                  <button className="primary-button" onClick={() => navigate(`/result/${submission.id}?requestId=${encodeURIComponent(request.id)}`)}>Открыть красивую карточку</button>
-                  <button className="secondary-button" onClick={() => copy(createPublicLink(submission.answers, submission.computed_profile, submission.id), "request_result_link_copied")}>Скопировать Flower ID</button>
+                  <button className="primary-button" onClick={() => document.getElementById("request-order-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                    Заказать цветы по Flower ID
+                  </button>
+                  <button className="secondary-button" onClick={() => navigate(`/result/${submission.id}?requestId=${encodeURIComponent(request.id)}`)}>Посмотреть Flower ID</button>
                 </div>
               </article>
               <RequestOrderPanel request={request} submission={submission} />
@@ -797,17 +791,15 @@ function RequestStatusPage({
             <article className="message-card request-wait-card">
               <strong>{requestStatusCopy(request.status).title}</strong>
               <p>{requestStatusCopy(request.status).text}</p>
-              <div className="action-stack">
-                <button className="primary-button" onClick={() => openShare(readyMessage, requestLink, "request_share_clicked")}>Отправить запрос</button>
-                <button className="secondary-button" onClick={() => copy(readyMessage, "request_copy_message_clicked")}>Скопировать текст</button>
-                <button className="secondary-button" onClick={() => copy(requestLink, "request_copy_link_clicked")}>Скопировать ссылку</button>
-                <button className="text-button" onClick={() => navigate(`/r/${encodeURIComponent(encodeRequestToken(request))}`)}>Посмотреть как получатель</button>
-              </div>
+              {request.status === "created" && (
+                <div className="action-stack">
+                  <button className="primary-button" onClick={() => openShare(readyMessage, requestLink, "request_share_clicked")}>Отправить запрос</button>
+                </div>
+              )}
             </article>
           )}
         </section>
       </section>
-      {toast && <div className="toast">{toast}</div>}
     </main>
   );
 }
@@ -860,7 +852,7 @@ function RequestOrderPanel({ request, submission }: { request: FlowerRequest; su
   const canOrder = draft.budget.trim().length > 0 && draft.occasion.trim().length > 0;
 
   return (
-    <section className="order-panel">
+    <section className="order-panel" id="request-order-panel">
       <p className="eyebrow">Заказ букета</p>
       <h2>Заказать по этому Flower ID</h2>
       <p>Укажи бюджет и повод — флористу сразу уйдёт понятный бриф по стилю, стоп-листу и задаче.</p>
