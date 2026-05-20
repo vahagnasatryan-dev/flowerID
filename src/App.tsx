@@ -345,6 +345,7 @@ function PublicProfile({
   const requestId = new URLSearchParams(window.location.search).get("requestId");
   const archetypeId = payload.archetype_id ?? findArchetypeByTitle(payload.title);
   const defaults = archetypeResultDefaults[archetypeId];
+  const publicName = payload.name || "Получатель";
   const palette = payload.preferred_colors.length
     ? payload.preferred_colors.slice(0, 5).map((name, index) => ({
       name,
@@ -361,20 +362,20 @@ function PublicProfile({
             <span>для букетов без ошибок</span>
           </header>
           <ResultHero
-            name={payload.name || "Получатель"}
+            name={publicName}
             archetypeName={defaults.name}
             title={payload.name ? `Flower ID ${payload.name}` : "Flower ID готов"}
-            subtitle="Теперь ты знаешь, какой букет ей действительно подходит."
-            description={payload.description}
+            subtitle={`Теперь понятно, какой букет действительно подходит для ${publicName}.`}
+            description={personalizeResultText(payload.description, publicName)}
             tags={defaults.tags}
             submissionId={payload.flower_id ?? ""}
           />
-          <ArchetypeVisualReferences visuals={defaults.visuals} />
+          <ArchetypeVisualReferences visuals={defaults.visuals} name={publicName} isShared />
           <section className="flower-id-profile-card">
-            <ProfileSection title="Палитра">
+            <ProfileSection title={`Палитра ${publicName}`}>
               <PaletteSwatches palette={palette} />
             </ProfileSection>
-            <ProfileSection title="Тебе подойдут">
+            <ProfileSection title={`Подойдут для ${publicName}`}>
               <ChipList items={payload.favorite_flowers} fallback="Флорист подберёт цветы по стилю." />
             </ProfileSection>
             <ProfileSection title="Лучше не дарить" tone="warning">
@@ -1780,6 +1781,11 @@ function ResultScreen({
       await copy(text, "share_clicked");
     }
   };
+  const order = () => openOrder(orderMessage, { submissionId, requestId, archetypeId: profile.primary_archetype });
+  const saveSharedResult = () => {
+    track("shared_result_saved_clicked", { submissionId, archetype: profile.primary_archetype, view: resultView });
+    navigate("/my-flower-id");
+  };
 
   return (
     <section className="screen result-screen premium-result-screen">
@@ -1799,8 +1805,8 @@ function ResultScreen({
         name={name}
         archetypeName={defaults.name}
         title={isShared ? `Flower ID ${name}` : "Твой Flower ID готов"}
-        subtitle={isShared ? "Теперь ты знаешь, какие букеты ей действительно подходят." : "Теперь близким проще выбрать букет, который действительно тебе подходит."}
-        description={resultData.description}
+        subtitle={isShared ? `Теперь понятно, какие букеты действительно подходят для ${name}.` : "Теперь близким проще выбрать букет, который действительно тебе подходит."}
+        description={isShared ? personalizeResultText(resultData.description, name) : resultData.description}
         tags={resultData.tags}
         submissionId={submissionId}
       />
@@ -1809,9 +1815,9 @@ function ResultScreen({
         isShared={isShared}
         name={name}
         onShare={share}
-        onOrder={() => openOrder(orderMessage, { submissionId, requestId, archetypeId: profile.primary_archetype })}
+        onOrder={order}
         onCopyLink={() => copy(resultUrl, "copy_link_clicked")}
-        onCopyProfile={() => copy(copyText, "profile_copied")}
+        onCopyProfile={isShared ? saveSharedResult : () => copy(copyText, "profile_copied")}
         onRequestAnother={() => {
           track("request_another_clicked", { source: "result", submissionId, archetype: profile.primary_archetype, view: resultView });
           navigate("/request");
@@ -1822,13 +1828,14 @@ function ResultScreen({
         }}
       />
 
-      <ArchetypeVisualReferences visuals={resultData.visuals} />
+      <ArchetypeVisualReferences visuals={resultData.visuals} name={name} isShared={isShared} />
 
-      <FlowerIdProfileCard data={resultData} />
+      <FlowerIdProfileCard data={resultData} name={name} isShared={isShared} />
 
-      <ResultFeedback submissionId={submissionId} archetype={profile.primary_archetype} view={resultView} />
+      {!isShared && <ResultFeedback submissionId={submissionId} archetype={profile.primary_archetype} view={resultView} />}
 
       <div className="result-secondary-actions">
+        {isShared && <button className="primary-button" onClick={order}>Заказать цветы</button>}
         {!isShared && <button className="primary-button" onClick={share}>Поделиться</button>}
         {!isShared && onEdit && <button className="secondary-button" onClick={onEdit}>Редактировать Flower ID</button>}
         {!isShared && <button className="secondary-button" onClick={() => navigate("/my-flower-id")}>Мои Flower ID</button>}
@@ -1877,12 +1884,12 @@ function ResultHero({
   );
 }
 
-function ArchetypeVisualReferences({ visuals }: { visuals: ArchetypeVisual[] }) {
+function ArchetypeVisualReferences({ visuals, name, isShared }: { visuals: ArchetypeVisual[]; name: string; isShared: boolean }) {
   return (
     <section className="result-section">
       <div className="result-section-heading">
         <p className="eyebrow">Визуальные референсы</p>
-        <h2>Как выглядит твой стиль</h2>
+        <h2>{isShared ? `Как выглядит стиль ${name}` : "Как выглядит твой стиль"}</h2>
       </div>
       <div className="visual-reference-row">
         {visuals.map((visual, index) => (
@@ -1916,23 +1923,27 @@ function ArchetypeVisualReferences({ visuals }: { visuals: ArchetypeVisual[] }) 
 
 function FlowerIdProfileCard({
   data,
+  name,
+  isShared,
 }: {
   data: ReturnType<typeof getResultData>;
+  name: string;
+  isShared: boolean;
 }) {
   return (
     <article className="flower-id-profile-card">
-      <ProfileSection title="Твой стиль">
-        <p>{data.styleText}</p>
+      <ProfileSection title={isShared ? `Стиль ${name}` : "Твой стиль"}>
+        <p>{isShared ? personalizeResultText(data.styleText, name) : data.styleText}</p>
         <div className="result-style-tags compact">
           {data.tags.map((tag) => <span key={tag}>{tag}</span>)}
         </div>
       </ProfileSection>
 
-      <ProfileSection title="Твоя палитра">
+      <ProfileSection title={isShared ? `Палитра ${name}` : "Твоя палитра"}>
         <PaletteSwatches palette={data.palette} />
       </ProfileSection>
 
-      <ProfileSection title="Тебе подойдут">
+      <ProfileSection title={isShared ? `Подойдут для ${name}` : "Тебе подойдут"}>
         <ChipList items={data.flowers} fallback="Флорист подберёт цветы по выбранному стилю." />
       </ProfileSection>
 
@@ -1949,7 +1960,7 @@ function FlowerIdProfileCard({
         </ProfileSection>
       </div>
 
-      <ProfileSection title="Идеальный букет" tone="ideal">
+      <ProfileSection title={isShared ? `Идеальный букет для ${name}` : "Идеальный букет"} tone="ideal">
         <p>{data.ideal}</p>
       </ProfileSection>
     </article>
@@ -2019,7 +2030,7 @@ function ResultActions({
         {isShared ? `Подобрать букет для ${name}` : "Поделиться моим Flower ID"}
       </button>
       <button className="ghost-button" onClick={isShared ? onCopyProfile : onOrder}>
-        {isShared ? "Скопировать Flower ID" : "Подобрать букет по моему Flower ID"}
+        {isShared ? "Сохранить" : "Подобрать букет по моему Flower ID"}
       </button>
       <button className="secondary-button" onClick={isShared ? onCreateOwn : onRequestAnother}>
         {isShared ? "Создать свой Flower ID" : "Узнать Flower ID другого человека →"}
@@ -2100,6 +2111,18 @@ function ResultFeedback({
       {sent && <p className="subtle">Спасибо, это поможет сделать Flower ID точнее.</p>}
     </section>
   );
+}
+
+function personalizeResultText(text: string, name: string) {
+  return text
+    .replace(/^Вам ближе /, `Для ${name} ближе `)
+    .replace(/^Вам подходят /, `Для ${name} подходят `)
+    .replace(/^Ваш идеальный букет /, `Идеальный букет для ${name} `)
+    .replace(/^Ваш стиль /, `Стиль ${name} `)
+    .replace(/\bВам\b/g, `Для ${name}`)
+    .replace(/\bвам\b/g, `для ${name}`)
+    .replace(/\bВаш\b/g, `Профиль ${name}`)
+    .replace(/\bваш\b/g, `профиль ${name}`);
 }
 
 function PublicOrderPanel({
