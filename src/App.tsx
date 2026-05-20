@@ -18,6 +18,7 @@ import {
   loadAnswers,
   loadEditingSubmissionId,
   loadFlowerRequest,
+  loadFlowerOrders,
   loadFlowerRequests,
   loadStep,
   loadSubmission,
@@ -114,7 +115,7 @@ export default function App() {
     setRouteKey(window.location.pathname + window.location.search);
   };
 
-  if (publicPayload) return <PublicProfile payload={publicPayload} />;
+  if (publicPayload) return <PublicProfile payload={publicPayload} navigate={navigate} />;
 
   const path = window.location.pathname;
   if (path === "/quiz") {
@@ -124,6 +125,7 @@ export default function App() {
   }
   if (path === "/request") return <RequestPage navigate={navigate} />;
   if (path.startsWith("/request-status/")) return <RequestStatusPage requestId={decodeURIComponent(path.split("/request-status/")[1] || "")} navigate={navigate} />;
+  if (path.startsWith("/order-next/")) return <OrderNextStepsPage orderId={decodeURIComponent(path.split("/order-next/")[1] || "")} navigate={navigate} />;
   if (path === "/my-flower-id") return <MyFlowerIdPage navigate={navigate} startQuiz={() => setQuizActive(true)} />;
   if (path === "/metrics-debug") return <MetricsDebugPage navigate={navigate} />;
   if (path.startsWith("/r/")) return <RecipientRequestPage requestToken={decodeURIComponent(path.split("/r/")[1] || "")} navigate={navigate} />;
@@ -335,6 +337,7 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
 
 function PublicProfile({
   payload,
+  navigate,
 }: {
   payload: {
     name: string;
@@ -347,6 +350,7 @@ function PublicProfile({
     avoid_flowers: string[];
     preferred_format: string;
   };
+  navigate: (url: string) => void;
 }) {
   const requestId = new URLSearchParams(window.location.search).get("requestId");
   const archetypeId = payload.archetype_id ?? findArchetypeByTitle(payload.title);
@@ -391,7 +395,7 @@ function PublicProfile({
               <p>{payload.preferred_format}</p>
             </ProfileSection>
           </section>
-          <PublicOrderPanel payload={payload} archetypeId={archetypeId} requestId={requestId} />
+          <PublicOrderPanel payload={payload} archetypeId={archetypeId} requestId={requestId} navigate={navigate} />
         </div>
       </section>
     </main>
@@ -792,7 +796,7 @@ function RequestStatusPage({
                   <button className="secondary-button" onClick={() => navigate(`/result/${submission.id}?requestId=${encodeURIComponent(request.id)}`)}>Посмотреть Flower ID</button>
                 </div>
               </article>
-              <RequestOrderPanel request={request} submission={submission} />
+              <RequestOrderPanel request={request} submission={submission} navigate={navigate} />
             </>
           ) : (
             <article className="message-card request-wait-card">
@@ -848,7 +852,7 @@ function RequestProgress({ request }: { request: FlowerRequest }) {
   );
 }
 
-function RequestOrderPanel({ request, submission }: { request: FlowerRequest; submission: FlowerSubmission }) {
+function RequestOrderPanel({ request, submission, navigate }: { request: FlowerRequest; submission: FlowerSubmission; navigate: (url: string) => void }) {
   const [draft, setDraft] = useState<OrderDraft>({
     budget: "",
     occasion: request.occasion,
@@ -873,7 +877,7 @@ function RequestOrderPanel({ request, submission }: { request: FlowerRequest; su
       archetype: submission.computed_profile.primary_archetype,
     });
     saveFlowerOrder(order);
-    openOrder(message, { submissionId: submission.id, requestId: request.id, archetypeId: submission.computed_profile.primary_archetype, orderId: order.id });
+    navigate(`/order-next/${order.id}`);
   };
 
   return (
@@ -931,6 +935,79 @@ function RecipientRequestPage({ requestToken, navigate }: { requestToken: string
           {request.occasion && <article className="result-block"><span>Повод</span><p>{request.occasion}</p></article>}
           {request.comment && <article className="message-card">{request.comment}</article>}
           <button className="primary-button" onClick={() => navigate(`/?requestId=${encodeURIComponent(request.id)}`)}>Создать мой Flower ID</button>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function OrderNextStepsPage({ orderId, navigate }: { orderId: string; navigate: (url: string) => void }) {
+  const order = loadFlowerOrders()[orderId] ?? null;
+  const [copied, setCopied] = useState(false);
+
+  if (!order) {
+    return (
+      <EmptyState
+        title="Заказ не найден"
+        text="Возможно, он был создан на другом устройстве. Можно вернуться к Flower ID и оформить заказ ещё раз."
+        action="К моим Flower ID"
+        onAction={() => navigate("/my-flower-id")}
+      />
+    );
+  }
+
+  const openTelegram = async () => {
+    await openOrder(order.message, {
+      orderId: order.id,
+      submissionId: order.submissionId,
+      requestId: order.requestId,
+      archetypeId: String(order.archetype),
+    });
+    setCopied(true);
+  };
+
+  const copyAgain = async () => {
+    await navigator.clipboard.writeText(order.message);
+    track("order_message_copied", { orderId: order.id, submissionId: order.submissionId, requestId: order.requestId });
+    setCopied(true);
+  };
+
+  return (
+    <main className="app-shell">
+      <section className="quiz-frame">
+        <Header step={0} onBack={() => navigate(order.submissionId && order.submissionId !== "public_profile" ? `/result/${order.submissionId}` : "/")} />
+        <section className="screen order-next-screen">
+          <p className="eyebrow">Заказ подготовлен</p>
+          <h1>Остался один шаг в Telegram</h1>
+          <p className="lead">
+            Мы подготовили сообщение для флориста и скопируем его в буфер. Открой Telegram, вставь сообщение в чат и отправь.
+          </p>
+
+          <div className="order-next-card">
+            <span>{order.flowerId || "Flower ID"}</span>
+            <h2>{order.recipientName}</h2>
+            <p>{order.occasion} · {order.budget}</p>
+          </div>
+
+          <div className="order-next-steps">
+            <article>
+              <strong>1</strong>
+              <p>Нажми кнопку ниже — откроется чат @flowerid_order.</p>
+            </article>
+            <article>
+              <strong>2</strong>
+              <p>Сообщение заказа уже будет скопировано. Просто вставь его в чат.</p>
+            </article>
+            <article>
+              <strong>3</strong>
+              <p>Мы подберём 3 подходящих варианта, и ты быстро оформишь заказ.</p>
+            </article>
+          </div>
+
+          <button className="primary-button" onClick={openTelegram}>Открыть Telegram и вставить сообщение</button>
+          <button className="secondary-button" onClick={copyAgain}>Скопировать сообщение ещё раз</button>
+          {copied && <p className="subtle">Сообщение скопировано. В Telegram нажми в поле ввода и выбери “Вставить”.</p>}
+          <OrderBriefPreview title="Посмотреть текст сообщения" message={order.message} />
         </section>
       </section>
     </main>
@@ -1862,15 +1939,14 @@ function ResultScreen({
 
       {!isShared && <ResultFeedback submissionId={submissionId} archetype={profile.primary_archetype} view={resultView} />}
 
-      {isShared && (
-        <SharedResultOrderPanel
-          answers={answers}
-          profile={profile}
-          publicLink={publicOrderLink}
-          requestId={requestId}
-          submissionId={submissionId}
-        />
-      )}
+      <SharedResultOrderPanel
+        answers={answers}
+        profile={profile}
+        publicLink={publicOrderLink}
+        requestId={requestId}
+        submissionId={submissionId}
+        navigate={navigate}
+      />
 
       <div className="result-secondary-actions">
         {isShared && <button className="primary-button" onClick={order}>Заказать цветы</button>}
@@ -2167,6 +2243,7 @@ function PublicOrderPanel({
   payload,
   archetypeId,
   requestId,
+  navigate,
 }: {
   payload: {
     name: string;
@@ -2176,6 +2253,7 @@ function PublicOrderPanel({
   };
   archetypeId: ArchetypeId;
   requestId?: string | null;
+  navigate: (url: string) => void;
 }) {
   const [draft, setDraft] = useState<OrderDraft>(createEmptyOrderDraft());
   const canOrder = canSubmitOrder(draft);
@@ -2212,7 +2290,7 @@ function PublicOrderPanel({
       archetype: archetypeId,
     });
     saveFlowerOrder(order);
-    openOrder(message, { submissionId: payload.flower_id || "public_profile", requestId, archetypeId, orderId: order.id });
+    navigate(`/order-next/${order.id}`);
   };
 
   return (
@@ -2240,12 +2318,14 @@ function SharedResultOrderPanel({
   publicLink,
   requestId,
   submissionId,
+  navigate,
 }: {
   answers: Answers;
   profile: ComputedProfile;
   publicLink: string;
   requestId?: string | null;
   submissionId: string;
+  navigate: (url: string) => void;
 }) {
   const [draft, setDraft] = useState<OrderDraft>(createEmptyOrderDraft());
   const message = buildOrderMessage(answers, profile, publicLink, requestId, draft);
@@ -2262,7 +2342,7 @@ function SharedResultOrderPanel({
       archetype: profile.primary_archetype,
     });
     saveFlowerOrder(order);
-    openOrder(message, { submissionId, requestId, archetypeId: profile.primary_archetype, orderId: order.id });
+    navigate(`/order-next/${order.id}`);
   };
 
   return (
