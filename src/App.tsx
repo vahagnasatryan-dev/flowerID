@@ -659,7 +659,7 @@ function RequestPage({ navigate }: { navigate: (url: string) => void }) {
           <p className="lead">Отправь красивую ссылку: получатель создаст цветочный стиль, а ты сможешь заказать букет без риска ошибиться.</p>
           <div className="contact-panel">
             <label>Имя получателя<input value={form.recipientName} placeholder="Анна" onChange={(event) => setForm({ ...form, recipientName: event.target.value })} /></label>
-            <label>От кого запрос<input value={form.requesterName} placeholder="Арман" onChange={(event) => setForm({ ...form, requesterName: event.target.value })} /></label>
+            <label>От кого запрос<input value={form.requesterName} placeholder="Сергей" onChange={(event) => setForm({ ...form, requesterName: event.target.value })} /></label>
             <label>Повод<input value={form.occasion} placeholder="день рождения, свидание, просто так" onChange={(event) => setForm({ ...form, occasion: event.target.value })} /></label>
             <label>Комментарий<textarea className="text-area" value={form.comment} placeholder="Хочу подарить тебе цветы, которые правда понравятся" onChange={(event) => setForm({ ...form, comment: event.target.value })} /></label>
           </div>
