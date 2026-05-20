@@ -86,6 +86,7 @@ const quizStepLabels = [
   "Имя",
 ];
 const activeQuizKey = "flower_id_active_quiz";
+const orderTelegramUrl = "https://t.me/flowerid_order";
 
 export default function App() {
   const publicPayload = readPublicPayload();
@@ -2808,7 +2809,7 @@ function listForOrder(items: string[]) {
   return items.filter(Boolean).filter(unique).slice(0, 6).join(", ");
 }
 
-function openOrder(
+async function openOrder(
   prefilledMessage: string,
   payload: { submissionId: string; requestId?: string | null; archetypeId: string; orderId?: string },
 ) {
@@ -2817,11 +2818,11 @@ function openOrder(
     submissionId: payload.submissionId,
     requestId: payload.requestId,
     archetypeId: payload.archetypeId,
-    channel: "telegram",
+    channel: "telegram_account",
+    telegramAccount: "@flowerid_order",
   });
-  const telegramBase = "https://t.me/share/url";
-  const url = `${telegramBase}?text=${encodeURIComponent(prefilledMessage)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
+  await navigator.clipboard?.writeText(prefilledMessage).catch(() => undefined);
+  window.open(orderTelegramUrl, "_blank", "noopener,noreferrer");
 }
 
 function exportCsv(answers: Answers, profile: ReturnType<typeof computeProfile>) {
