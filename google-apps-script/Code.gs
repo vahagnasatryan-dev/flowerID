@@ -72,6 +72,28 @@ const SHEET_HEADERS = {
     "comment",
     "payload_json",
   ],
+  orders: [
+    "received_at",
+    "order_id",
+    "created_at",
+    "session_id",
+    "submission_id",
+    "request_id",
+    "flower_id",
+    "recipient_name",
+    "archetype",
+    "budget",
+    "occasion",
+    "delivery_date",
+    "delivery_details",
+    "sender_name",
+    "sender_contact",
+    "comment",
+    "source",
+    "status",
+    "message",
+    "payload_json",
+  ],
 };
 
 function doPost(e) {
@@ -110,6 +132,11 @@ function doPost(e) {
       }
       if (record.kind === "feedback") {
         appendFeedback(ss, record, receivedAt);
+        markProcessedRecord(record.id);
+        inserted += 1;
+      }
+      if (record.kind === "order") {
+        appendOrder(ss, record, receivedAt);
         markProcessedRecord(record.id);
         inserted += 1;
       }
@@ -261,6 +288,33 @@ function appendFeedbackFromEvent(ss, record, payload, eventPayload, receivedAt) 
     eventPayload.value || "",
     eventPayload.comment || "",
     JSON.stringify(eventPayload),
+  ]);
+}
+
+function appendOrder(ss, record, receivedAt) {
+  const sheet = getSheet(ss, "orders");
+  const payload = record.payload || {};
+  sheet.appendRow([
+    receivedAt,
+    payload.id || record.id || "",
+    payload.created_at || record.created_at || "",
+    record.session_id || "",
+    payload.submissionId || payload.submission_id || "",
+    payload.requestId || payload.request_id || "",
+    payload.flowerId || payload.flower_id || "",
+    payload.recipientName || payload.recipient_name || "",
+    payload.archetype || "",
+    payload.budget || "",
+    payload.occasion || "",
+    payload.deliveryDate || payload.delivery_date || "",
+    payload.deliveryDetails || payload.delivery_details || "",
+    payload.senderName || payload.sender_name || "",
+    payload.senderContact || payload.sender_contact || "",
+    payload.comment || "",
+    payload.source || "",
+    payload.status || "",
+    payload.message || "",
+    JSON.stringify(payload),
   ]);
 }
 

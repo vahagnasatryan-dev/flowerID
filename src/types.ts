@@ -84,7 +84,7 @@ export interface QuizEvent {
   created_at: string;
 }
 
-export type CollectorRecordKind = "event" | "submission" | "request" | "feedback";
+export type CollectorRecordKind = "event" | "submission" | "request" | "feedback" | "order";
 
 export interface CollectorRecord {
   id: string;
@@ -127,5 +127,25 @@ export interface ResultFeedbackRecord {
   phase: "clicked" | "submitted";
   value: string;
   comment: string;
+  created_at: string;
+}
+
+export interface FlowerOrder {
+  id: string;
+  submissionId: string;
+  requestId?: string | null;
+  archetype: ArchetypeId | string;
+  recipientName: string;
+  flowerId: string;
+  budget: string;
+  occasion: string;
+  deliveryDate: string;
+  deliveryDetails: string;
+  senderName: string;
+  senderContact: string;
+  comment: string;
+  source: "result" | "request_status" | "public_profile";
+  status: "created";
+  message: string;
   created_at: string;
 }

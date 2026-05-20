@@ -1,4 +1,4 @@
-import type { Answers, CollectorRecord, CollectorRecordKind, FlowerRequest, FlowerSubmission, QuizEvent, ResultFeedbackRecord } from "./types";
+import type { Answers, CollectorRecord, CollectorRecordKind, FlowerOrder, FlowerRequest, FlowerSubmission, QuizEvent, ResultFeedbackRecord } from "./types";
 
 const answersKey = "flower_portrait_answers";
 const stepKey = "flower_portrait_step";
@@ -6,6 +6,7 @@ const eventKey = "quiz_events";
 const submissionsKey = "flower_id_submissions";
 const requestsKey = "flower_id_requests";
 const feedbackKey = "flower_id_result_feedback";
+const ordersKey = "flower_id_orders";
 const collectorQueueKey = "flower_id_collector_queue";
 const sessionKey = "flower_id_session_id";
 const editingSubmissionKey = "flower_id_editing_submission";
@@ -164,6 +165,21 @@ export async function syncFlowerRequestStatus(id: string) {
 export function saveResultFeedback(feedback: ResultFeedbackRecord) {
   const feedbackRecords = loadResultFeedback();
   localStorage.setItem(feedbackKey, JSON.stringify({ ...feedbackRecords, [feedback.id]: feedback }));
+}
+
+export function saveFlowerOrder(order: FlowerOrder) {
+  const orders = loadFlowerOrders();
+  localStorage.setItem(ordersKey, JSON.stringify({ ...orders, [order.id]: order }));
+  enqueueCollectorRecord("order", order.id, order as unknown as Record<string, unknown>);
+}
+
+export function loadFlowerOrders(): Record<string, FlowerOrder> {
+  try {
+    const raw = localStorage.getItem(ordersKey);
+    return raw ? (JSON.parse(raw) as Record<string, FlowerOrder>) : {};
+  } catch {
+    return {};
+  }
 }
 
 export function loadResultFeedback(): Record<string, ResultFeedbackRecord> {

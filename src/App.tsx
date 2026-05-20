@@ -24,6 +24,7 @@ import {
   loadSubmissions,
   resetStorage,
   saveAnswers,
+  saveFlowerOrder,
   saveFlowerRequest,
   saveResultFeedback,
   saveStep,
@@ -33,11 +34,15 @@ import {
   syncFlowerRequestStatus,
   track,
 } from "./storage";
-import type { Answers, ArchetypeId, ComputedProfile, FlowerRequest, FlowerReaction, FlowerSubmission, Option, Reaction } from "./types";
+import type { Answers, ArchetypeId, ComputedProfile, FlowerOrder, FlowerRequest, FlowerReaction, FlowerSubmission, Option, Reaction } from "./types";
 
 type OrderDraft = {
   budget: string;
   occasion: string;
+  deliveryDate: string;
+  deliveryDetails: string;
+  senderName: string;
+  senderContact: string;
   comment: string;
 };
 
@@ -846,30 +851,45 @@ function RequestOrderPanel({ request, submission }: { request: FlowerRequest; su
   const [draft, setDraft] = useState<OrderDraft>({
     budget: "",
     occasion: request.occasion,
+    deliveryDate: "",
+    deliveryDetails: "",
+    senderName: request.requesterName,
+    senderContact: "",
     comment: "",
   });
   const publicLink = createPublicLink(submission.answers, submission.computed_profile, submission.id);
   const message = buildOrderMessage(submission.answers, submission.computed_profile, publicLink, request.id, draft);
-  const canOrder = draft.budget.trim().length > 0 && draft.occasion.trim().length > 0;
+  const canOrder = canSubmitOrder(draft);
+  const submitOrder = () => {
+    const order = createFlowerOrder({
+      draft,
+      message,
+      source: "request_status",
+      submissionId: submission.id,
+      requestId: request.id,
+      flowerId: formatFlowerId(submission.id),
+      recipientName: submission.answers.user.name || request.recipientName || "не указано",
+      archetype: submission.computed_profile.primary_archetype,
+    });
+    saveFlowerOrder(order);
+    openOrder(message, { submissionId: submission.id, requestId: request.id, archetypeId: submission.computed_profile.primary_archetype, orderId: order.id });
+  };
 
   return (
     <section className="order-panel" id="request-order-panel">
       <p className="eyebrow">Заказ букета</p>
       <h2>Заказать по этому Flower ID</h2>
       <p>Укажи бюджет и повод — флористу сразу уйдёт понятный бриф по стилю, стоп-листу и задаче.</p>
-      <div className="contact-panel order-fields">
-        <label>Бюджет<input value={draft.budget} placeholder="Например: до 15 000 ₽" onChange={(event) => setDraft({ ...draft, budget: event.target.value })} /></label>
-        <label>Повод<input value={draft.occasion} placeholder="День рождения, свидание, просто так" onChange={(event) => setDraft({ ...draft, occasion: event.target.value })} /></label>
-        <label>Комментарий<textarea className="text-area" value={draft.comment} placeholder="Например: доставка сегодня вечером, хочется нежно и без сильного аромата" onChange={(event) => setDraft({ ...draft, comment: event.target.value })} /></label>
-      </div>
+      <OrderFields draft={draft} onChange={setDraft} />
+      <OrderBriefPreview title="Что получит флорист" message={message} />
       <button
         className="primary-button"
         disabled={!canOrder}
-        onClick={() => openOrder(message, { submissionId: submission.id, requestId: request.id, archetypeId: submission.computed_profile.primary_archetype })}
+        onClick={submitOrder}
       >
         Заказать букет
       </button>
-      {!canOrder && <p className="subtle">Чтобы оформить заказ, заполни бюджет и повод.</p>}
+      {!canOrder && <p className="subtle">Чтобы оформить заказ, заполни бюджет, повод и контакт для связи.</p>}
     </section>
   );
 }
@@ -1761,7 +1781,6 @@ function ResultScreen({
   const defaults = archetypeResultDefaults[profile.primary_archetype];
   const resultData = getResultData(answers, profile, hardNo);
   const copyText = `${profile.share_text}\nFlower ID:\n${publicOrderLink}`;
-  const orderMessage = buildOrderMessage(answers, profile, publicOrderLink, requestId);
   const resultUrl = submissionId ? `${window.location.origin}/result/${submissionId}` : window.location.href;
 
   const copy = async (text: string, eventName: string) => {
@@ -1781,7 +1800,15 @@ function ResultScreen({
       await copy(text, "share_clicked");
     }
   };
-  const order = () => openOrder(orderMessage, { submissionId, requestId, archetypeId: profile.primary_archetype });
+  const order = () => {
+    const target = document.getElementById("result-order-panel");
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    const message = buildOrderMessage(answers, profile, publicOrderLink, requestId);
+    openOrder(message, { submissionId, requestId, archetypeId: profile.primary_archetype });
+  };
   const saveSharedResult = () => {
     track("shared_result_saved_clicked", { submissionId, archetype: profile.primary_archetype, view: resultView });
     navigate("/my-flower-id");
@@ -1833,6 +1860,16 @@ function ResultScreen({
       <FlowerIdProfileCard data={resultData} name={name} isShared={isShared} />
 
       {!isShared && <ResultFeedback submissionId={submissionId} archetype={profile.primary_archetype} view={resultView} />}
+
+      {isShared && (
+        <SharedResultOrderPanel
+          answers={answers}
+          profile={profile}
+          publicLink={publicOrderLink}
+          requestId={requestId}
+          submissionId={submissionId}
+        />
+      )}
 
       <div className="result-secondary-actions">
         {isShared && <button className="primary-button" onClick={order}>Заказать цветы</button>}
@@ -2139,8 +2176,8 @@ function PublicOrderPanel({
   archetypeId: ArchetypeId;
   requestId?: string | null;
 }) {
-  const [draft, setDraft] = useState<OrderDraft>({ budget: "", occasion: "", comment: "" });
-  const canOrder = draft.budget.trim().length > 0 && draft.occasion.trim().length > 0;
+  const [draft, setDraft] = useState<OrderDraft>(createEmptyOrderDraft());
+  const canOrder = canSubmitOrder(draft);
   const message = [
     requestId
       ? "Здравствуйте! Я получил Flower ID по запросу и хочу заказать букет по этому профилю."
@@ -2152,31 +2189,114 @@ function PublicOrderPanel({
     `Формат: ${payload.preferred_format}`,
     `Бюджет: ${draft.budget || "не указан"}`,
     `Повод: ${draft.occasion || "не указан"}`,
+    draft.deliveryDate ? `Дата/время: ${draft.deliveryDate}` : "",
+    draft.deliveryDetails ? `Доставка/самовывоз: ${draft.deliveryDetails}` : "",
+    draft.senderName ? `Заказчик: ${draft.senderName}` : "",
+    draft.senderContact ? `Контакт: ${draft.senderContact}` : "",
     draft.comment ? `Комментарий: ${draft.comment}` : "",
     requestId ? `Request ID: ${requestId}` : "",
     `Ссылка: ${window.location.href}`,
   ]
     .filter(Boolean)
     .join("\n");
+  const submitOrder = () => {
+    const order = createFlowerOrder({
+      draft,
+      message,
+      source: "public_profile",
+      submissionId: payload.flower_id || "public_profile",
+      requestId,
+      flowerId: payload.flower_id || "",
+      recipientName: payload.name || "не указано",
+      archetype: archetypeId,
+    });
+    saveFlowerOrder(order);
+    openOrder(message, { submissionId: payload.flower_id || "public_profile", requestId, archetypeId, orderId: order.id });
+  };
 
   return (
     <section className="order-panel">
       <p className="eyebrow">Для дарителя</p>
       <h2>Заказать букет по Flower ID</h2>
-      <p>Добавь бюджет и повод, чтобы флорист собрал варианты уже с учётом профиля.</p>
-      <div className="contact-panel order-fields">
-        <label>Бюджет<input value={draft.budget} placeholder="Например: 12 000–15 000 ₽" onChange={(event) => setDraft({ ...draft, budget: event.target.value })} /></label>
-        <label>Повод<input value={draft.occasion} placeholder="День рождения, годовщина, просто так" onChange={(event) => setDraft({ ...draft, occasion: event.target.value })} /></label>
-        <label>Комментарий<textarea className="text-area" value={draft.comment} placeholder="Дата, доставка, пожелания по размеру или упаковке" onChange={(event) => setDraft({ ...draft, comment: event.target.value })} /></label>
-      </div>
+      <p>Добавь детали заказа, чтобы флорист собрал варианты уже с учётом профиля.</p>
+      <OrderFields draft={draft} onChange={setDraft} />
+      <OrderBriefPreview title="Что получит флорист" message={message} />
       <button
         className="primary-button"
         disabled={!canOrder}
-        onClick={() => openOrder(message, { submissionId: payload.flower_id || "public_profile", requestId, archetypeId })}
+        onClick={submitOrder}
       >
         Заказать букет
       </button>
+      {!canOrder && <p className="subtle">Чтобы оформить заказ, заполни бюджет, повод и контакт для связи.</p>}
     </section>
+  );
+}
+
+function SharedResultOrderPanel({
+  answers,
+  profile,
+  publicLink,
+  requestId,
+  submissionId,
+}: {
+  answers: Answers;
+  profile: ComputedProfile;
+  publicLink: string;
+  requestId?: string | null;
+  submissionId: string;
+}) {
+  const [draft, setDraft] = useState<OrderDraft>(createEmptyOrderDraft());
+  const message = buildOrderMessage(answers, profile, publicLink, requestId, draft);
+  const canOrder = canSubmitOrder(draft);
+  const submitOrder = () => {
+    const order = createFlowerOrder({
+      draft,
+      message,
+      source: "result",
+      submissionId,
+      requestId,
+      flowerId: formatFlowerId(submissionId),
+      recipientName: answers.user.name || "не указано",
+      archetype: profile.primary_archetype,
+    });
+    saveFlowerOrder(order);
+    openOrder(message, { submissionId, requestId, archetypeId: profile.primary_archetype, orderId: order.id });
+  };
+
+  return (
+    <section className="order-panel" id="result-order-panel">
+      <p className="eyebrow">Заказ букета</p>
+      <h2>Заказать цветы по Flower ID</h2>
+      <p>Заполни короткий бриф. Мы сохраним заявку и откроем Telegram с сообщением для флориста.</p>
+      <OrderFields draft={draft} onChange={setDraft} />
+      <OrderBriefPreview title="Что получит флорист" message={message} />
+      <button className="primary-button" disabled={!canOrder} onClick={submitOrder}>Заказать цветы</button>
+      {!canOrder && <p className="subtle">Чтобы оформить заказ, заполни бюджет, повод и контакт для связи.</p>}
+    </section>
+  );
+}
+
+function OrderFields({ draft, onChange }: { draft: OrderDraft; onChange: (draft: OrderDraft) => void }) {
+  return (
+    <div className="contact-panel order-fields">
+      <label>Бюджет<input value={draft.budget} placeholder="Например: 12 000–15 000 ₽" onChange={(event) => onChange({ ...draft, budget: event.target.value })} /></label>
+      <label>Повод<input value={draft.occasion} placeholder="День рождения, свидание, просто так" onChange={(event) => onChange({ ...draft, occasion: event.target.value })} /></label>
+      <label>Когда нужен букет<input value={draft.deliveryDate} placeholder="Сегодня вечером, 24 мая к 18:00" onChange={(event) => onChange({ ...draft, deliveryDate: event.target.value })} /></label>
+      <label>Доставка или самовывоз<input value={draft.deliveryDetails} placeholder="Адрес, район или самовывоз" onChange={(event) => onChange({ ...draft, deliveryDetails: event.target.value })} /></label>
+      <label>Ваше имя<input value={draft.senderName} placeholder="Сергей" onChange={(event) => onChange({ ...draft, senderName: event.target.value })} /></label>
+      <label>Контакт для связи<input value={draft.senderContact} placeholder="@telegram или телефон" onChange={(event) => onChange({ ...draft, senderContact: event.target.value })} /></label>
+      <label>Комментарий<textarea className="text-area" value={draft.comment} placeholder="Например: хочется нежно, без сильного аромата, доставка сюрпризом" onChange={(event) => onChange({ ...draft, comment: event.target.value })} /></label>
+    </div>
+  );
+}
+
+function OrderBriefPreview({ title, message }: { title: string; message: string }) {
+  return (
+    <details className="order-brief-preview">
+      <summary>{title}</summary>
+      <pre>{message}</pre>
+    </details>
   );
 }
 
@@ -2599,6 +2719,62 @@ function findArchetypeByTitle(title: string): ArchetypeId {
   return "garden_romance";
 }
 
+function createEmptyOrderDraft(): OrderDraft {
+  return {
+    budget: "",
+    occasion: "",
+    deliveryDate: "",
+    deliveryDetails: "",
+    senderName: "",
+    senderContact: "",
+    comment: "",
+  };
+}
+
+function canSubmitOrder(draft: OrderDraft) {
+  return Boolean(draft.budget.trim() && draft.occasion.trim() && draft.senderContact.trim());
+}
+
+function createFlowerOrder({
+  draft,
+  message,
+  source,
+  submissionId,
+  requestId,
+  flowerId,
+  recipientName,
+  archetype,
+}: {
+  draft: OrderDraft;
+  message: string;
+  source: FlowerOrder["source"];
+  submissionId: string;
+  requestId?: string | null;
+  flowerId: string;
+  recipientName: string;
+  archetype: FlowerOrder["archetype"];
+}): FlowerOrder {
+  return {
+    id: createId("ord"),
+    submissionId,
+    requestId,
+    archetype,
+    recipientName,
+    flowerId,
+    budget: draft.budget.trim(),
+    occasion: draft.occasion.trim(),
+    deliveryDate: draft.deliveryDate.trim(),
+    deliveryDetails: draft.deliveryDetails.trim(),
+    senderName: draft.senderName.trim(),
+    senderContact: draft.senderContact.trim(),
+    comment: draft.comment.trim(),
+    source,
+    status: "created",
+    message,
+    created_at: new Date().toISOString(),
+  };
+}
+
 function buildOrderMessage(answers: Answers, profile: ComputedProfile, link: string, requestId?: string | null, order?: OrderDraft) {
   const recipient = answers.user.name || "не указано";
   return [
@@ -2611,8 +2787,16 @@ function buildOrderMessage(answers: Answers, profile: ComputedProfile, link: str
     `Ссылка: ${link}`,
     order?.budget ? `Бюджет: ${order.budget}` : "",
     order?.occasion ? `Повод: ${order.occasion}` : "",
+    order?.deliveryDate ? `Когда нужен букет: ${order.deliveryDate}` : "",
+    order?.deliveryDetails ? `Доставка/самовывоз: ${order.deliveryDetails}` : "",
+    order?.senderName ? `Заказчик: ${order.senderName}` : "",
+    order?.senderContact ? `Контакт: ${order.senderContact}` : "",
     order?.comment ? `Комментарий: ${order.comment}` : "",
     requestId ? `Request ID: ${requestId}` : "",
+    "",
+    `Стиль: ${profile.description}`,
+    `Подойдут цветы: ${listForOrder(profile.favorite_flowers) || "по Flower ID"}`,
+    `Лучше избегать: ${listForOrder([...profile.avoid_flowers, ...profile.avoid_colors]) || "нет жёсткого стоп-листа"}`,
     "",
     "Помогите подобрать 3 варианта букета под этот стиль.",
   ]
@@ -2620,11 +2804,16 @@ function buildOrderMessage(answers: Answers, profile: ComputedProfile, link: str
     .join("\n");
 }
 
+function listForOrder(items: string[]) {
+  return items.filter(Boolean).filter(unique).slice(0, 6).join(", ");
+}
+
 function openOrder(
   prefilledMessage: string,
-  payload: { submissionId: string; requestId?: string | null; archetypeId: string },
+  payload: { submissionId: string; requestId?: string | null; archetypeId: string; orderId?: string },
 ) {
   track("order_clicked", {
+    orderId: payload.orderId,
     submissionId: payload.submissionId,
     requestId: payload.requestId,
     archetypeId: payload.archetypeId,
