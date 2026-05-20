@@ -18,6 +18,7 @@ import {
   loadAnswers,
   loadEditingSubmissionId,
   loadFlowerRequest,
+  loadFlowerRequests,
   loadStep,
   loadSubmission,
   loadSubmissions,
@@ -32,6 +33,12 @@ import {
   track,
 } from "./storage";
 import type { Answers, ArchetypeId, ComputedProfile, FlowerRequest, FlowerReaction, FlowerSubmission, Option, Reaction } from "./types";
+
+type OrderDraft = {
+  budget: string;
+  occasion: string;
+  comment: string;
+};
 
 const defaultAnswers: Answers = {
   bouquet_swipes: [],
@@ -109,6 +116,7 @@ export default function App() {
     return <LandingPage navigate={navigate} startQuiz={() => setQuizActive(true)} key={routeKey} />;
   }
   if (path === "/request") return <RequestPage navigate={navigate} />;
+  if (path.startsWith("/request-status/")) return <RequestStatusPage requestId={decodeURIComponent(path.split("/request-status/")[1] || "")} navigate={navigate} />;
   if (path === "/my-flower-id") return <MyFlowerIdPage navigate={navigate} startQuiz={() => setQuizActive(true)} />;
   if (path === "/metrics-debug") return <MetricsDebugPage navigate={navigate} />;
   if (path.startsWith("/r/")) return <RecipientRequestPage requestToken={decodeURIComponent(path.split("/r/")[1] || "")} navigate={navigate} />;
@@ -323,6 +331,7 @@ function PublicProfile({
 }: {
   payload: {
     name: string;
+    archetype_id?: ArchetypeId;
     flower_id?: string;
     title: string;
     description: string;
@@ -332,23 +341,49 @@ function PublicProfile({
     preferred_format: string;
   };
 }) {
+  const requestId = new URLSearchParams(window.location.search).get("requestId");
+  const archetypeId = payload.archetype_id ?? findArchetypeByTitle(payload.title);
+  const defaults = archetypeResultDefaults[archetypeId];
+  const palette = payload.preferred_colors.length
+    ? payload.preferred_colors.slice(0, 5).map((name, index) => ({
+      name,
+      color: defaults.palette[index % defaults.palette.length]?.color ?? "#d9cec2",
+    }))
+    : defaults.palette;
+
   return (
     <main className="app-shell">
       <section className="quiz-frame public-frame">
-        <div className="screen result-screen">
-          <p className="eyebrow">{payload.name ? `Портрет: ${payload.name}` : "Цветочный портрет"}</p>
-          {payload.flower_id && <span className="flower-id-pill">{payload.flower_id}</span>}
-          <h1>{payload.title}</h1>
-          <p className="lead">{payload.description}</p>
-          <div className="result-grid">
-            <ResultBlock title="Любимые палитры" items={payload.preferred_colors} />
-            <ResultBlock title="Любимые цветы" items={payload.favorite_flowers} fallback="Подобрать по стилю" />
-            <ResultBlock title="Что нельзя использовать" items={payload.avoid_flowers} fallback="Жесткого стоп-листа нет" />
-            <ResultBlock title="Предпочтительный формат" items={[payload.preferred_format]} />
-          </div>
-          <button className="primary-button" onClick={() => track("order_by_profile_clicked", { source: "public_profile" })}>
-            Заказать букет по этому портрету
-          </button>
+        <div className="screen result-screen premium-result-screen public-result-screen">
+          <header className="result-brand-header">
+            <span className="brand-mark">Flower ID</span>
+            <span>для букетов без ошибок</span>
+          </header>
+          <ResultHero
+            name={payload.name || "Получатель"}
+            archetypeName={defaults.name}
+            title={payload.name ? `Flower ID ${payload.name}` : "Flower ID готов"}
+            subtitle="Теперь ты знаешь, какой букет ей действительно подходит."
+            description={payload.description}
+            tags={defaults.tags}
+            submissionId={payload.flower_id ?? ""}
+          />
+          <ArchetypeVisualReferences visuals={defaults.visuals} />
+          <section className="flower-id-profile-card">
+            <ProfileSection title="Палитра">
+              <PaletteSwatches palette={palette} />
+            </ProfileSection>
+            <ProfileSection title="Тебе подойдут">
+              <ChipList items={payload.favorite_flowers} fallback="Флорист подберёт цветы по стилю." />
+            </ProfileSection>
+            <ProfileSection title="Лучше не дарить" tone="warning">
+              <ChipList items={payload.avoid_flowers} fallback="Жёсткого стоп-листа нет." />
+            </ProfileSection>
+            <ProfileSection title="Формат">
+              <p>{payload.preferred_format}</p>
+            </ProfileSection>
+          </section>
+          <PublicOrderPanel payload={payload} archetypeId={archetypeId} requestId={requestId} />
         </div>
       </section>
     </main>
@@ -505,6 +540,9 @@ function MyFlowerIdPage({ navigate, startQuiz }: { navigate: (url: string) => vo
   const submissions = Object.values(loadSubmissions()).sort((a, b) =>
     (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at),
   );
+  const requests = Object.values(loadFlowerRequests()).sort((a, b) =>
+    (b.completed_at || b.started_at || b.opened_at || b.created_at).localeCompare(a.completed_at || a.started_at || a.opened_at || a.created_at),
+  );
   const [toast, setToast] = useState("");
 
   const copy = async (submission: FlowerSubmission) => {
@@ -533,7 +571,23 @@ function MyFlowerIdPage({ navigate, startQuiz }: { navigate: (url: string) => vo
         <section className="screen">
           <p className="eyebrow">Мои Flower ID</p>
           <h1>Сохраненные профили</h1>
-          <p className="lead">Flower ID сохраняются на этом устройстве. Их можно открыть, отправить ссылкой или отредактировать без аккаунта.</p>
+          <p className="lead">Здесь хранятся твои профили и запросы близким. Можно следить за статусом, открыть готовую карточку и заказать букет.</p>
+          {!!requests.length && (
+            <section className="saved-section">
+              <div className="section-title-row">
+                <div>
+                  <p className="eyebrow">Запросы близким</p>
+                  <h2>Статус прохождения</h2>
+                </div>
+                <button className="secondary-button compact-button" onClick={() => navigate("/request")}>Новый запрос</button>
+              </div>
+              <div className="saved-id-list">
+                {requests.map((request) => (
+                  <RequestSummaryCard key={request.id} request={request} navigate={navigate} />
+                ))}
+              </div>
+            </section>
+          )}
           {!submissions.length ? (
             <article className="message-card">
               <strong>Пока нет сохраненных Flower ID</strong>
@@ -577,34 +631,8 @@ function RequestPage({ navigate }: { navigate: (url: string) => void }) {
     ? `${created.requesterName || "Привет"} хочет подарить цветы без ошибки.\nСоздай свой Flower ID - это займет около минуты и покажет твой цветочный стиль.\n${requestLink}`
     : "";
 
-  const copy = async (text: string, eventName: string) => {
-    await navigator.clipboard.writeText(text);
-    track(eventName, { requestId: created?.id });
-    setToast("Скопировано");
-    window.setTimeout(() => setToast(""), 2200);
-  };
-
   if (created) {
-    return (
-      <main className="app-shell">
-        <section className="quiz-frame">
-          <Header step={0} onBack={() => navigate("/")} />
-          <section className="screen">
-            <p className="eyebrow">Запрос Flower ID</p>
-            <h1>Ссылка-запрос готова</h1>
-            <p className="lead">Отправьте ее получателю. Когда он создаст Flower ID, вы сможете подобрать букет по реальному стилю.</p>
-            <article className="message-card">{readyMessage}</article>
-            <div className="action-stack">
-              <button className="primary-button" onClick={() => openShare(readyMessage, requestLink, "request_share_clicked")}>Отправить</button>
-              <button className="secondary-button" onClick={() => copy(readyMessage, "request_copy_message_clicked")}>Скопировать текст</button>
-              <button className="secondary-button" onClick={() => copy(requestLink, "request_copy_link_clicked")}>Скопировать ссылку</button>
-              <button className="text-button" onClick={() => navigate(`/r/${created.id}`)}>Открыть ссылку</button>
-            </div>
-          </section>
-        </section>
-        {toast && <div className="toast">{toast}</div>}
-      </main>
-    );
+    return <RequestStatusPage requestId={created.id} navigate={navigate} initialMessage={readyMessage} initialLink={requestLink} />;
   }
 
   return (
@@ -642,11 +670,172 @@ function RequestPage({ navigate }: { navigate: (url: string) => void }) {
               requesterName: request.requesterName,
               recipientName: request.recipientName,
             });
+            navigate(`/request-status/${request.id}`);
           }}>Создать ссылку-запрос</button>
         </section>
       </section>
       {toast && <div className="toast">{toast}</div>}
     </main>
+  );
+}
+
+function RequestStatusPage({
+  requestId,
+  navigate,
+  initialMessage,
+  initialLink,
+}: {
+  requestId: string;
+  navigate: (url: string) => void;
+  initialMessage?: string;
+  initialLink?: string;
+}) {
+  const [tick, setTick] = useState(0);
+  const [toast, setToast] = useState("");
+  const request = useMemo(() => loadFlowerRequest(requestId), [requestId, tick]);
+  const submission = useMemo(() => (request?.submissionId ? loadSubmission(request.submissionId) : null), [request?.submissionId, tick]);
+  const requestLink = request ? initialLink || `${window.location.origin}/r/${encodeURIComponent(encodeRequestToken(request))}` : "";
+  const readyMessage = request
+    ? initialMessage || `${request.requesterName || "Привет"} хочет подарить цветы без ошибки.\nСоздай свой Flower ID - это займет около минуты и покажет твой цветочный стиль.\n${requestLink}`
+    : "";
+
+  useEffect(() => {
+    track("request_status_viewed", { requestId, status: request?.status });
+    const timer = window.setInterval(() => setTick((value) => value + 1), 2500);
+    return () => window.clearInterval(timer);
+  }, [requestId]);
+
+  const copy = async (text: string, eventName: string) => {
+    await navigator.clipboard.writeText(text);
+    track(eventName, { requestId, status: request?.status });
+    setToast("Скопировано");
+    window.setTimeout(() => setToast(""), 2200);
+  };
+
+  if (!request) {
+    return (
+      <EmptyState
+        title="Запрос не найден"
+        text="Возможно, он был создан на другом устройстве или ссылка скопирована не полностью."
+        action="Создать новый запрос"
+        onAction={() => navigate("/request")}
+      />
+    );
+  }
+
+  return (
+    <main className="app-shell">
+      <section className="quiz-frame">
+        <Header step={0} onBack={() => navigate("/my-flower-id")} />
+        <section className="screen request-status-screen">
+          <p className="eyebrow">Запрос Flower ID</p>
+          <h1>{request.recipientName ? `Flower ID для ${request.recipientName}` : "Статус запроса"}</h1>
+          <p className="lead">
+            Следи за прохождением. Когда профиль будет готов, здесь появится карточка и заказ букета по Flower ID.
+          </p>
+
+          <RequestProgress request={request} />
+
+          {submission ? (
+            <>
+              <article className="request-ready-card">
+                <div>
+                  <span>{formatFlowerId(submission.id)}</span>
+                  <h2>{submission.answers.user.name || request.recipientName} — {submission.computed_profile.title}</h2>
+                  <p>{submission.computed_profile.description}</p>
+                </div>
+                <div className="saved-id-actions">
+                  <button className="primary-button" onClick={() => navigate(`/result/${submission.id}?requestId=${encodeURIComponent(request.id)}`)}>Открыть красивую карточку</button>
+                  <button className="secondary-button" onClick={() => copy(createPublicLink(submission.answers, submission.computed_profile, submission.id), "request_result_link_copied")}>Скопировать Flower ID</button>
+                </div>
+              </article>
+              <RequestOrderPanel request={request} submission={submission} />
+            </>
+          ) : (
+            <article className="message-card request-wait-card">
+              <strong>{requestStatusCopy(request.status).title}</strong>
+              <p>{requestStatusCopy(request.status).text}</p>
+              <div className="action-stack">
+                <button className="primary-button" onClick={() => openShare(readyMessage, requestLink, "request_share_clicked")}>Отправить запрос</button>
+                <button className="secondary-button" onClick={() => copy(readyMessage, "request_copy_message_clicked")}>Скопировать текст</button>
+                <button className="secondary-button" onClick={() => copy(requestLink, "request_copy_link_clicked")}>Скопировать ссылку</button>
+                <button className="text-button" onClick={() => navigate(`/r/${encodeURIComponent(encodeRequestToken(request))}`)}>Посмотреть как получатель</button>
+              </div>
+            </article>
+          )}
+        </section>
+      </section>
+      {toast && <div className="toast">{toast}</div>}
+    </main>
+  );
+}
+
+function RequestSummaryCard({ request, navigate }: { request: FlowerRequest; navigate: (url: string) => void }) {
+  const submission = request.submissionId ? loadSubmission(request.submissionId) : null;
+  const status = requestStatusCopy(request.status);
+  return (
+    <article className="saved-id-card request-summary-card">
+      <span>{status.label}</span>
+      <h2>{request.recipientName || "Получатель"}</h2>
+      <p>{request.occasion || "Повод не указан"} · {formatDate(request.completed_at || request.started_at || request.opened_at || request.created_at)}</p>
+      <div className="saved-id-actions">
+        <button className="secondary-button" onClick={() => navigate(`/request-status/${request.id}`)}>
+          {submission ? "Открыть и заказать" : "Смотреть статус"}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function RequestProgress({ request }: { request: FlowerRequest }) {
+  const steps = [
+    { id: "created", label: "Запрос создан" },
+    { id: "opened", label: "Ссылка открыта" },
+    { id: "started_quiz", label: "Квиз начат" },
+    { id: "completed", label: "Flower ID готов" },
+  ];
+  const currentIndex = steps.findIndex((step) => step.id === request.status);
+  return (
+    <div className="request-progress" aria-label="Статус прохождения Flower ID">
+      {steps.map((step, index) => (
+        <div className={index <= currentIndex ? "active" : ""} key={step.id}>
+          <i aria-hidden="true" />
+          <span>{step.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RequestOrderPanel({ request, submission }: { request: FlowerRequest; submission: FlowerSubmission }) {
+  const [draft, setDraft] = useState<OrderDraft>({
+    budget: "",
+    occasion: request.occasion,
+    comment: "",
+  });
+  const publicLink = createPublicLink(submission.answers, submission.computed_profile, submission.id);
+  const message = buildOrderMessage(submission.answers, submission.computed_profile, publicLink, request.id, draft);
+  const canOrder = draft.budget.trim().length > 0 && draft.occasion.trim().length > 0;
+
+  return (
+    <section className="order-panel">
+      <p className="eyebrow">Заказ букета</p>
+      <h2>Заказать по этому Flower ID</h2>
+      <p>Укажи бюджет и повод — флористу сразу уйдёт понятный бриф по стилю, стоп-листу и задаче.</p>
+      <div className="contact-panel order-fields">
+        <label>Бюджет<input value={draft.budget} placeholder="Например: до 15 000 ₽" onChange={(event) => setDraft({ ...draft, budget: event.target.value })} /></label>
+        <label>Повод<input value={draft.occasion} placeholder="День рождения, свидание, просто так" onChange={(event) => setDraft({ ...draft, occasion: event.target.value })} /></label>
+        <label>Комментарий<textarea className="text-area" value={draft.comment} placeholder="Например: доставка сегодня вечером, хочется нежно и без сильного аромата" onChange={(event) => setDraft({ ...draft, comment: event.target.value })} /></label>
+      </div>
+      <button
+        className="primary-button"
+        disabled={!canOrder}
+        onClick={() => openOrder(message, { submissionId: submission.id, requestId: request.id, archetypeId: submission.computed_profile.primary_archetype })}
+      >
+        Заказать букет
+      </button>
+      {!canOrder && <p className="subtle">Чтобы оформить заказ, заполни бюджет и повод.</p>}
+    </section>
   );
 }
 
@@ -1529,15 +1718,16 @@ function ResultScreen({
   onToast: (message: string) => void;
 }) {
   const publicLink = createPublicLink(answers, profile, submissionId);
-  const referralLink = `${publicLink}?ref=${submissionId}`;
+  const publicOrderLink = requestId ? `${publicLink}?requestId=${encodeURIComponent(requestId)}` : publicLink;
+  const referralLink = requestId ? publicOrderLink : `${publicLink}?ref=${submissionId}`;
   const hardNo = getBouquetHardNo(answers);
   const name = answers.user.name || "Получатель";
   const isShared = context === "shared";
   const resultView = isShared ? "publicView" : "ownerView";
   const defaults = archetypeResultDefaults[profile.primary_archetype];
   const resultData = getResultData(answers, profile, hardNo);
-  const copyText = `${profile.share_text}\nFlower ID:\n${publicLink}`;
-  const orderMessage = buildOrderMessage(answers, profile, publicLink, requestId);
+  const copyText = `${profile.share_text}\nFlower ID:\n${publicOrderLink}`;
+  const orderMessage = buildOrderMessage(answers, profile, publicOrderLink, requestId);
   const resultUrl = submissionId ? `${window.location.origin}/result/${submissionId}` : window.location.href;
 
   const copy = async (text: string, eventName: string) => {
@@ -1551,7 +1741,7 @@ function ResultScreen({
       ? `Flower ID ${name}: ${referralLink}`
       : `Вот мой Flower ID. Здесь мой стиль, палитра и подсказки, что лучше не дарить: ${referralLink}`;
     if (navigator.share) {
-      await navigator.share({ title: "Мой цветочный портрет", text, url: publicLink });
+      await navigator.share({ title: "Мой цветочный портрет", text, url: publicOrderLink });
       track("share_clicked", { submissionId, archetype: profile.primary_archetype, view: resultView, shareType: "web_share" });
     } else {
       await copy(text, "share_clicked");
@@ -1874,6 +2064,61 @@ function ResultFeedback({
       )}
       {selected === "yes" && !sent && <p className="subtle">Спасибо — сохранили обратную связь.</p>}
       {sent && <p className="subtle">Спасибо, это поможет сделать Flower ID точнее.</p>}
+    </section>
+  );
+}
+
+function PublicOrderPanel({
+  payload,
+  archetypeId,
+  requestId,
+}: {
+  payload: {
+    name: string;
+    flower_id?: string;
+    title: string;
+    preferred_format: string;
+  };
+  archetypeId: ArchetypeId;
+  requestId?: string | null;
+}) {
+  const [draft, setDraft] = useState<OrderDraft>({ budget: "", occasion: "", comment: "" });
+  const canOrder = draft.budget.trim().length > 0 && draft.occasion.trim().length > 0;
+  const message = [
+    requestId
+      ? "Здравствуйте! Я получил Flower ID по запросу и хочу заказать букет по этому профилю."
+      : "Здравствуйте! Хочу заказать букет по Flower ID.",
+    "",
+    `Получатель: ${payload.name || "не указано"}`,
+    `Flower ID: ${payload.title}`,
+    payload.flower_id ? `ID: ${payload.flower_id}` : "",
+    `Формат: ${payload.preferred_format}`,
+    `Бюджет: ${draft.budget || "не указан"}`,
+    `Повод: ${draft.occasion || "не указан"}`,
+    draft.comment ? `Комментарий: ${draft.comment}` : "",
+    requestId ? `Request ID: ${requestId}` : "",
+    `Ссылка: ${window.location.href}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return (
+    <section className="order-panel">
+      <p className="eyebrow">Для дарителя</p>
+      <h2>Заказать букет по Flower ID</h2>
+      <p>Добавь бюджет и повод, чтобы флорист собрал варианты уже с учётом профиля.</p>
+      <div className="contact-panel order-fields">
+        <label>Бюджет<input value={draft.budget} placeholder="Например: 12 000–15 000 ₽" onChange={(event) => setDraft({ ...draft, budget: event.target.value })} /></label>
+        <label>Повод<input value={draft.occasion} placeholder="День рождения, годовщина, просто так" onChange={(event) => setDraft({ ...draft, occasion: event.target.value })} /></label>
+        <label>Комментарий<textarea className="text-area" value={draft.comment} placeholder="Дата, доставка, пожелания по размеру или упаковке" onChange={(event) => setDraft({ ...draft, comment: event.target.value })} /></label>
+      </div>
+      <button
+        className="primary-button"
+        disabled={!canOrder}
+        onClick={() => openOrder(message, { submissionId: payload.flower_id || "public_profile", requestId, archetypeId })}
+      >
+        Заказать букет
+      </button>
     </section>
   );
 }
@@ -2240,6 +2485,7 @@ function editSavedFlowerId(submission: FlowerSubmission, navigate: (url: string)
 }
 
 function formatFlowerId(id: string) {
+  if (id.startsWith("FID-")) return id;
   return `FID-${id.replace(/^fid_/, "").replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }
 
@@ -2264,7 +2510,39 @@ async function openShare(text: string, url: string, eventName: string) {
   await navigator.clipboard.writeText(text);
 }
 
-function buildOrderMessage(answers: Answers, profile: ComputedProfile, link: string, requestId?: string | null) {
+function requestStatusCopy(status: FlowerRequest["status"]) {
+  const map = {
+    created: {
+      label: "Ожидает",
+      title: "Запрос создан",
+      text: "Отправь ссылку получателю. Как только он откроет её и начнёт квиз, статус обновится.",
+    },
+    opened: {
+      label: "Открыт",
+      title: "Ссылку уже открыли",
+      text: "Получатель видел запрос. Осталось пройти короткий квиз и сохранить Flower ID.",
+    },
+    started_quiz: {
+      label: "В процессе",
+      title: "Квиз начат",
+      text: "Получатель уже собирает Flower ID. Когда результат будет готов, здесь появится карточка.",
+    },
+    completed: {
+      label: "Готово",
+      title: "Flower ID готов",
+      text: "Можно открыть карточку и заказать букет по профилю.",
+    },
+  } satisfies Record<FlowerRequest["status"], { label: string; title: string; text: string }>;
+  return map[status];
+}
+
+function findArchetypeByTitle(title: string): ArchetypeId {
+  const exact = Object.entries(archetypeResultDefaults).find(([, value]) => title.includes(value.name));
+  if (exact) return exact[0] as ArchetypeId;
+  return "garden_romance";
+}
+
+function buildOrderMessage(answers: Answers, profile: ComputedProfile, link: string, requestId?: string | null, order?: OrderDraft) {
   const recipient = answers.user.name || "не указано";
   return [
     requestId
@@ -2274,6 +2552,9 @@ function buildOrderMessage(answers: Answers, profile: ComputedProfile, link: str
     `Получатель: ${recipient}`,
     `Flower ID: ${profile.title}`,
     `Ссылка: ${link}`,
+    order?.budget ? `Бюджет: ${order.budget}` : "",
+    order?.occasion ? `Повод: ${order.occasion}` : "",
+    order?.comment ? `Комментарий: ${order.comment}` : "",
     requestId ? `Request ID: ${requestId}` : "",
     "",
     "Помогите подобрать 3 варианта букета под этот стиль.",

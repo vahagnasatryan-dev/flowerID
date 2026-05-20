@@ -293,6 +293,7 @@ function buildFloristBrief(answers: Answers, profile: ComputedProfile) {
 export function getPublicPayload(answers: Answers, profile: ComputedProfile) {
   return {
     name: answers.user.name,
+    archetype_id: profile.primary_archetype,
     title: profile.title,
     description: profile.description,
     preferred_colors: profile.preferred_colors,
