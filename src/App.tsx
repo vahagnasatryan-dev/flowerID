@@ -376,16 +376,16 @@ function PublicProfile({
             archetypeName={defaults.name}
             title={payload.name ? `Flower ID ${payload.name}` : "Flower ID готов"}
             subtitle={`Теперь понятно, какой букет действительно подходит для ${publicName}.`}
-            description={personalizeResultText(payload.description, publicName)}
+            description={makePublicResultText(payload.description)}
             tags={defaults.tags}
             submissionId={payload.flower_id ?? ""}
           />
           <ArchetypeVisualReferences visuals={defaults.visuals} name={publicName} isShared />
           <section className="flower-id-profile-card">
-            <ProfileSection title={`Палитра ${publicName}`}>
+            <ProfileSection title="Палитра Flower ID">
               <PaletteSwatches palette={palette} />
             </ProfileSection>
-            <ProfileSection title={`Подойдут для ${publicName}`}>
+            <ProfileSection title="Подойдут к этому Flower ID">
               <ChipList items={payload.favorite_flowers} fallback="Флорист подберёт цветы по стилю." />
             </ProfileSection>
             <ProfileSection title="Лучше не дарить" tone="warning">
@@ -1897,7 +1897,7 @@ function ResultScreen({
         archetypeName={defaults.name}
         title={isShared ? `Flower ID ${name}` : "Твой Flower ID готов"}
         subtitle={isShared ? `Теперь понятно, какие букеты действительно подходят для ${name}.` : "Теперь близким проще выбрать букет, который действительно тебе подходит."}
-        description={isShared ? personalizeResultText(resultData.description, name) : resultData.description}
+        description={isShared ? makePublicResultText(resultData.description) : resultData.description}
         tags={resultData.tags}
         submissionId={submissionId}
       />
@@ -2032,18 +2032,18 @@ function FlowerIdProfileCard({
 }) {
   return (
     <article className="flower-id-profile-card">
-      <ProfileSection title={isShared ? `Стиль ${name}` : "Твой стиль"}>
-        <p>{isShared ? personalizeResultText(data.styleText, name) : data.styleText}</p>
+      <ProfileSection title={isShared ? "Стиль Flower ID" : "Твой стиль"}>
+        <p>{isShared ? makePublicResultText(data.styleText) : data.styleText}</p>
         <div className="result-style-tags compact">
           {data.tags.map((tag) => <span key={tag}>{tag}</span>)}
         </div>
       </ProfileSection>
 
-      <ProfileSection title={isShared ? `Палитра ${name}` : "Твоя палитра"}>
+      <ProfileSection title={isShared ? "Палитра Flower ID" : "Твоя палитра"}>
         <PaletteSwatches palette={data.palette} />
       </ProfileSection>
 
-      <ProfileSection title={isShared ? `Подойдут для ${name}` : "Тебе подойдут"}>
+      <ProfileSection title={isShared ? "Подойдут к этому Flower ID" : "Тебе подойдут"}>
         <ChipList items={data.flowers} fallback="Флорист подберёт цветы по выбранному стилю." />
       </ProfileSection>
 
@@ -2060,7 +2060,7 @@ function FlowerIdProfileCard({
         </ProfileSection>
       </div>
 
-      <ProfileSection title={isShared ? `Идеальный букет для ${name}` : "Идеальный букет"} tone="ideal">
+      <ProfileSection title={isShared ? "Идеальный букет по Flower ID" : "Идеальный букет"} tone="ideal">
         <p>{data.ideal}</p>
       </ProfileSection>
     </article>
@@ -2213,16 +2213,23 @@ function ResultFeedback({
   );
 }
 
-function personalizeResultText(text: string, name: string) {
+function makePublicResultText(text: string) {
   return text
-    .replace(/^Вам ближе /, `Для ${name} ближе `)
-    .replace(/^Вам подходят /, `Для ${name} подходят `)
-    .replace(/^Ваш идеальный букет /, `Идеальный букет для ${name} `)
-    .replace(/^Ваш стиль /, `Стиль ${name} `)
-    .replace(/\bВам\b/g, `Для ${name}`)
-    .replace(/\bвам\b/g, `для ${name}`)
-    .replace(/\bВаш\b/g, `Профиль ${name}`)
-    .replace(/\bваш\b/g, `профиль ${name}`);
+    .replace(/^Вам ближе букеты, которые /, "Ближе букеты, которые ")
+    .replace(/^Вам ближе /, "Ближе ")
+    .replace(/^Вам подходят /, "Подходят ")
+    .replace(/^Вам подходит /, "Подходит ")
+    .replace(/^Вам близка /, "Близка ")
+    .replace(/^Вам нужен /, "Нужен ")
+    .replace(/^Ваш идеальный букет /, "Идеальный букет ")
+    .replace(/^Ваш стиль про /, "Стиль про ")
+    .replace(/^Ваш стиль /, "Стиль ")
+    .replace(/^Ваш букет /, "Букет ")
+    .replace(/^Вы выбираете сдержанную красоту/, "В профиле — сдержанная красота")
+    .replace(/\bВам\b/g, "Получателю")
+    .replace(/\bвам\b/g, "получателю")
+    .replace(/\bВаш\b/g, "Этот")
+    .replace(/\bваш\b/g, "этот");
 }
 
 function PublicOrderPanel({
