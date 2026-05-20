@@ -460,24 +460,38 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
             <div className="landing-visual">
               <div className="landing-flower" aria-hidden="true" />
               <article className="flower-id-preview-card" aria-label="Пример результата Flower ID">
-                <span>Ваш Flower ID</span>
-                <h2>Мягкий минимализм</h2>
-                <div className="preview-section">
-                  <strong>Палитра</strong>
-                  <div className="preview-palette" aria-hidden="true">
-                    <i />
-                    <i />
-                    <i />
+                <div className="preview-card-top">
+                  <span>Пример результата</span>
+                  <strong>Flower ID</strong>
+                </div>
+                <div className="preview-photo" aria-hidden="true" />
+                <div className="preview-card-body">
+                  <p className="preview-name">Анна — Мягкий минимализм</p>
+                  <h2>Профиль, который легко отправить близким</h2>
+                  <div className="preview-tags" aria-label="Стиль примера">
+                    <span>нежно</span>
+                    <span>чисто</span>
+                    <span>воздушно</span>
                   </div>
-                  <p>молочный · пудровый · шалфейный</p>
-                </div>
-                <div className="preview-section">
-                  <strong>Подходит</strong>
-                  <p>ранункулюсы · анемоны · фрезия</p>
-                </div>
-                <div className="preview-section">
-                  <strong>Не дарить</strong>
-                  <p>красные розы · яркую упаковку</p>
+                  <div className="preview-section">
+                    <strong>Палитра</strong>
+                    <div className="preview-palette" aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
+                    </div>
+                    <p>молочный · пудровый · шалфейный</p>
+                  </div>
+                  <div className="preview-mini-grid">
+                    <div className="preview-section">
+                      <strong>Подходит</strong>
+                      <p>ранункулюсы · анемоны · фрезия</p>
+                    </div>
+                    <div className="preview-section">
+                      <strong>Не дарить</strong>
+                      <p>красные розы · яркую упаковку</p>
+                    </div>
+                  </div>
                 </div>
               </article>
             </div>

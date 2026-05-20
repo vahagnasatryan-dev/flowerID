@@ -1530,18 +1530,32 @@ body {
 .flower-id-preview-card {
   position: relative;
   z-index: 2;
-  width: min(100%, 300px);
+  width: min(100%, 330px);
   display: grid;
-  gap: 9px;
-  padding: 15px;
-  border: 1px solid rgba(36, 27, 22, 0.09);
-  border-radius: 22px;
-  background: rgba(255, 252, 247, 0.88);
-  box-shadow: 0 20px 44px rgba(36, 27, 22, 0.11);
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid rgba(255, 250, 246, 0.82);
+  border-radius: 30px;
+  background: rgba(255, 252, 247, 0.94);
+  box-shadow:
+    0 24px 70px rgba(36, 27, 22, 0.16),
+    inset 0 0 0 1px rgba(36, 27, 22, 0.04);
   backdrop-filter: blur(10px);
 }
 
-.flower-id-preview-card > span,
+.preview-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  color: #7a716b;
+  background: rgba(255, 250, 246, 0.82);
+}
+
+.preview-card-top span,
+.preview-card-top strong,
 .preview-section strong {
   color: #7a716b;
   font-size: 11px;
@@ -1549,11 +1563,57 @@ body {
   letter-spacing: 0;
 }
 
+.preview-card-top span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #efe8df;
+  color: var(--burgundy);
+}
+
+.preview-photo {
+  min-height: 140px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 246, 0) 54%, rgba(255, 252, 247, 0.92)),
+    url("/archetypes/white-green-minimalism.jpg") center 43% / cover no-repeat;
+}
+
+.preview-card-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 16px;
+}
+
+.preview-name {
+  width: fit-content;
+  margin: -18px 0 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--burgundy);
+  color: #fffaf6;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .flower-id-preview-card h2 {
   margin: 0;
   color: var(--ink);
-  font-size: 23px;
-  line-height: 1;
+  font-size: 24px;
+  line-height: 0.98;
+}
+
+.preview-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.preview-tags span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #f2ede7;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .flower-id-pill {
@@ -1573,6 +1633,12 @@ body {
 .preview-section {
   display: grid;
   gap: 4px;
+}
+
+.preview-mini-grid {
+  display: grid;
+  gap: 9px;
+  padding-top: 2px;
 }
 
 .preview-section p {
@@ -2433,8 +2499,8 @@ body {
   }
 
   .flower-id-preview-card {
-    width: min(100%, 300px);
-    padding: 16px;
+    width: min(100%, 330px);
+    padding: 0;
   }
 
   .landing-flower {
