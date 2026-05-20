@@ -1942,34 +1942,6 @@ body {
   gap: 18px;
 }
 
-.order-next-card {
-  display: grid;
-  gap: 8px;
-  padding: 20px;
-  border-radius: 28px;
-  background: #f2ede7;
-}
-
-.order-next-card span {
-  color: var(--burgundy);
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.order-next-card h2 {
-  margin: 0;
-  color: var(--ink);
-  font-size: 30px;
-  line-height: 1;
-}
-
-.order-next-card p {
-  margin: 0;
-  color: var(--muted);
-}
-
 .order-next-steps {
   display: grid;
   gap: 10px;

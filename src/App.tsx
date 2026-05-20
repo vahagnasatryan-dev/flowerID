@@ -966,12 +966,6 @@ function OrderNextStepsPage({ orderId, navigate }: { orderId: string; navigate: 
     setCopied(true);
   };
 
-  const copyAgain = async () => {
-    await navigator.clipboard.writeText(order.message);
-    track("order_message_copied", { orderId: order.id, submissionId: order.submissionId, requestId: order.requestId });
-    setCopied(true);
-  };
-
   return (
     <main className="app-shell">
       <section className="quiz-frame">
@@ -983,16 +977,10 @@ function OrderNextStepsPage({ orderId, navigate }: { orderId: string; navigate: 
             Мы подготовили сообщение для флориста и скопируем его в буфер. Открой Telegram, вставь сообщение в чат и отправь.
           </p>
 
-          <div className="order-next-card">
-            <span>{order.flowerId || "Flower ID"}</span>
-            <h2>{order.recipientName}</h2>
-            <p>{order.occasion} · {order.budget}</p>
-          </div>
-
           <div className="order-next-steps">
             <article>
               <strong>1</strong>
-              <p>Нажми кнопку ниже — откроется чат @flowerid_order.</p>
+              <p>Нажми кнопку ниже — откроется чат в Telegram.</p>
             </article>
             <article>
               <strong>2</strong>
@@ -1005,9 +993,7 @@ function OrderNextStepsPage({ orderId, navigate }: { orderId: string; navigate: 
           </div>
 
           <button className="primary-button" onClick={openTelegram}>Открыть Telegram и вставить сообщение</button>
-          <button className="secondary-button" onClick={copyAgain}>Скопировать сообщение ещё раз</button>
           {copied && <p className="subtle">Сообщение скопировано. В Telegram нажми в поле ввода и выбери “Вставить”.</p>}
-          <OrderBriefPreview title="Посмотреть текст сообщения" message={order.message} />
         </section>
       </section>
     </main>
