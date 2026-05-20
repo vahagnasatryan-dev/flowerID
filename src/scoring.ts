@@ -92,13 +92,13 @@ export function computeProfile(answers: Answers): ComputedProfile {
     add(scores, scoring[card_id], reactionWeight[reaction]);
   });
 
-  answers.mood.forEach((id) => add(scores, scoring[id], 1));
-  answers.favorite_palettes.forEach((id) => add(scores, paletteScore(id), 1));
+  answers.mood.forEach((id) => add(scores, scoring[id], 1.5));
+  answers.favorite_palettes.forEach((id) => add(scores, paletteScore(id), 1.25));
   if (answers.ideal_palette) add(scores, paletteScore(answers.ideal_palette), 2);
   answers.rejected_palettes.forEach((id) => add(scores, paletteScore(id), -1));
 
   Object.entries(answers.flowers).forEach(([id, reaction]) => {
-    const multiplier = reaction === "love" ? 2 : reaction === "dislike" || reaction === "forbidden" ? -1 : 0;
+    const multiplier = reaction === "love" ? 2.5 : reaction === "dislike" || reaction === "forbidden" ? -1.5 : 0;
     add(scores, scoring[id], multiplier);
   });
 
@@ -107,8 +107,8 @@ export function computeProfile(answers: Answers): ComputedProfile {
   if (answers.wow_vs_practical >= 4) add(scores, { evening_wow: 2, dramatic_elegance: 1 }, 1);
   if (answers.wow_vs_practical <= 2) add(scores, { quiet_luxury: 1, white_green_minimalism: 1 }, 1);
   answers.associations.forEach((id) => add(scores, associationScore(id), 1));
-  if (answers.packaging.includes("florist_choice")) add(scores, { quiet_luxury: 1 }, 1);
-  if (answers.packaging.includes("ribbon")) add(scores, { white_green_minimalism: 1, quiet_luxury: 1 }, 1);
+  answers.packaging.forEach((id) => add(scores, packagingScore(id), 1));
+  answers.packaging_stoplist.forEach((id) => add(scores, stopListScore(id), 1));
 
   const ranking = Object.entries(scores)
     .sort((a, b) => b[1] - a[1])
@@ -190,6 +190,27 @@ function associationScore(id: string): ScoreMap {
   if (["parizh", "utro", "knigi", "kofe"].includes(id)) return { paris_morning: 2 };
   if (["iskusstvo", "teatr", "gorod"].includes(id)) return { art_experiment: 1, dramatic_elegance: 1 };
   if (["minimalizm"].includes(id)) return { white_green_minimalism: 2, quiet_luxury: 1 };
+  return {};
+}
+
+function packagingScore(id: string): ScoreMap {
+  if (id === "minimal_wrap" || id === "ribbon") return { white_green_minimalism: 2, quiet_luxury: 1, paris_morning: 1 };
+  if (id === "kraft") return { wild_garden: 2, garden_romance: 1 };
+  if (id === "quiet_luxury_wrap" || id === "florist_choice") return { quiet_luxury: 2, white_green_minimalism: 1 };
+  if (id === "romantic_wrap") return { garden_romance: 2, classic_femininity: 1 };
+  return {};
+}
+
+function stopListScore(id: string): ScoreMap {
+  if (id === "too_bright" || id === "too_colorful") {
+    return { sunny_joy: -2, evening_wow: -1, art_experiment: -1, quiet_luxury: 1, white_green_minimalism: 1 };
+  }
+  if (id === "too_much_wrap" || id === "sparkles") return { quiet_luxury: 1, white_green_minimalism: 1, evening_wow: -1 };
+  if (id === "strong_scent") return { paris_morning: 1, white_green_minimalism: 1, quiet_luxury: 1 };
+  if (id === "lily") return { quiet_luxury: -1, dramatic_elegance: -1 };
+  if (id === "too_large") return { evening_wow: -2, dramatic_elegance: -1, paris_morning: 1, white_green_minimalism: 1 };
+  if (id === "too_simple") return { evening_wow: 1, dramatic_elegance: 1, art_experiment: 1, white_green_minimalism: -1 };
+  if (id === "red_roses") return { dramatic_elegance: -1, classic_femininity: -1 };
   return {};
 }
 

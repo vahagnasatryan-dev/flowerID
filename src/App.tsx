@@ -425,7 +425,7 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
               <div className="landing-flower" aria-hidden="true" />
               <article className="flower-id-preview-card" aria-label="Пример результата Flower ID">
                 <span>Ваш Flower ID</span>
-                <h2>Soft Minimalist</h2>
+                <h2>Мягкий минимализм</h2>
                 <div className="preview-section">
                   <strong>Палитра</strong>
                   <div className="preview-palette" aria-hidden="true">
@@ -1277,6 +1277,7 @@ type ArchetypeVisual = {
   title: string;
   description: string;
   image?: string;
+  imagePosition?: string;
   spriteIndex: number;
 };
 
@@ -1295,7 +1296,7 @@ type ArchetypeResultDefault = {
 
 const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
   garden_romance: {
-    name: "Romantic Muse",
+    name: "Садовая романтика",
     description: "Нежный, живой и романтичный стиль с ощущением сада и мягкой заботы.",
     tags: ["нежно", "садово", "воздушно", "романтично"],
     palette: [
@@ -1310,13 +1311,13 @@ const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
     packaging: "мягкая, натуральная, без лишнего декора",
     ideal: "Воздушная композиция в молочно-пудровой гамме с ранункулюсами, пионами и лёгкой зеленью.",
     visuals: [
-      { title: "Нежный", description: "Мягкая палитра, лёгкая форма, минимум упаковки", spriteIndex: 0 },
-      { title: "Премиальный", description: "Больше объёма, редкие цветы, тихая роскошь", spriteIndex: 4 },
-      { title: "Необычный", description: "Тот же стиль, но с арт-акцентом", spriteIndex: 10 },
+      { title: "Нежный", description: "Мягкая палитра, лёгкая форма, минимум упаковки", image: "/archetypes/garden-romance.jpg", spriteIndex: 0 },
+      { title: "Премиальный", description: "Больше объёма, редкие цветы, тихая роскошь", image: "/archetypes/classic-femininity.jpg", spriteIndex: 4 },
+      { title: "Необычный", description: "Тот же стиль, но с арт-акцентом", image: "/archetypes/paris-morning.jpg", spriteIndex: 10 },
     ],
   },
   white_green_minimalism: {
-    name: "Soft Minimalist",
+    name: "Мягкий минимализм",
     description: "Чистый, свежий и элегантный стиль без лишней декоративности.",
     tags: ["чисто", "свежо", "воздушно", "минималистично"],
     palette: [
@@ -1331,13 +1332,13 @@ const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
     packaging: "минималистичная, без лишнего декора",
     ideal: "Чистая бело-зелёная композиция с лёгкой формой, спокойной зеленью и аккуратной упаковкой.",
     visuals: [
-      { title: "Нежный", description: "Молочный, шалфейный, мягкая форма", spriteIndex: 1 },
-      { title: "Премиальный", description: "Белая гамма, редкие цветы, тихая роскошь", spriteIndex: 7 },
-      { title: "Необычный", description: "Минимализм с графичным акцентом", spriteIndex: 10 },
+      { title: "Нежный", description: "Молочный, шалфейный, мягкая форма", image: "/archetypes/white-green-minimalism.jpg", spriteIndex: 1 },
+      { title: "Премиальный", description: "Белая гамма, редкие цветы, тихая роскошь", image: "/archetypes/quiet-luxury.jpg", spriteIndex: 7 },
+      { title: "Необычный", description: "Минимализм с графичным акцентом", image: "/archetypes/art-experiment.jpg", spriteIndex: 10 },
     ],
   },
   dramatic_elegance: {
-    name: "Bold Drama",
+    name: "Драматичная элегантность",
     description: "Глубокий, вечерний и выразительный стиль с сильным характером.",
     tags: ["глубоко", "элегантно", "вечерне", "выразительно"],
     palette: [
@@ -1352,13 +1353,13 @@ const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
     packaging: "сдержанная, глубоких оттенков",
     ideal: "Выразительный букет в винно-ягодной гамме с крупной формой и элегантной подачей.",
     visuals: [
-      { title: "Драма", description: "Винные оттенки и вечерний объём", spriteIndex: 3 },
-      { title: "Премиальный", description: "Глубокая палитра и крупные акценты", spriteIndex: 8 },
-      { title: "Графичный", description: "Контраст и архитектурная форма", spriteIndex: 6 },
+      { title: "Драма", description: "Винные оттенки и вечерний объём", image: "/archetypes/dramatic-elegance.jpg", spriteIndex: 3 },
+      { title: "Премиальный", description: "Глубокая палитра и крупные акценты", image: "/archetypes/evening-wow.jpg", spriteIndex: 8 },
+      { title: "Графичный", description: "Контраст и архитектурная форма", image: "/archetypes/art-experiment.jpg", spriteIndex: 6 },
     ],
   },
   sunny_joy: {
-    name: "Sunny Energy",
+    name: "Солнечная энергия",
     description: "Тёплый, радостный и живой стиль, который сразу поднимает настроение.",
     tags: ["ярко", "радостно", "тепло", "сочно"],
     palette: [
@@ -1373,13 +1374,13 @@ const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
     packaging: "простая, чтобы не спорить с цветом",
     ideal: "Светлый сезонный микс в тёплых оттенках с ощущением праздника и живой энергии.",
     visuals: [
-      { title: "Солнечный", description: "Жёлтый, коралл, летний микс", spriteIndex: 2 },
-      { title: "Праздничный", description: "Больше цвета и заметный объём", spriteIndex: 8 },
-      { title: "Натуральный", description: "Яркость через сезонные цветы", spriteIndex: 5 },
+      { title: "Солнечный", description: "Жёлтый, коралл, летний микс", image: "/archetypes/sunny-joy.jpg", spriteIndex: 2 },
+      { title: "Праздничный", description: "Больше цвета и заметный объём", image: "/archetypes/evening-wow.jpg", spriteIndex: 8 },
+      { title: "Натуральный", description: "Яркость через сезонные цветы", image: "/archetypes/wild-garden.jpg", spriteIndex: 5 },
     ],
   },
   wild_garden: {
-    name: "Wild Natural",
+    name: "Дикий сад",
     description: "Свободный природный стиль, будто букет собран в красивом саду.",
     tags: ["природно", "живо", "свободно", "небрежно"],
     palette: [
@@ -1394,13 +1395,13 @@ const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
     packaging: "крафт или натуральная",
     ideal: "Свободный букет с полевыми фактурами, зеленью и ощущением естественного движения.",
     visuals: [
-      { title: "Природный", description: "Свободная форма и садовые фактуры", spriteIndex: 5 },
-      { title: "Тёплый", description: "Крафт, зелень и сезонные оттенки", spriteIndex: 0 },
-      { title: "Артистичный", description: "Асимметрия без лишней нарядности", spriteIndex: 10 },
+      { title: "Природный", description: "Свободная форма и садовые фактуры", image: "/archetypes/wild-garden.jpg", spriteIndex: 5 },
+      { title: "Тёплый", description: "Крафт, зелень и сезонные оттенки", image: "/archetypes/paris-morning.jpg", spriteIndex: 0 },
+      { title: "Артистичный", description: "Асимметрия без лишней нарядности", image: "/archetypes/art-experiment.jpg", spriteIndex: 10 },
     ],
   },
   art_experiment: {
-    name: "Art Lover",
+    name: "Арт-эксперимент",
     description: "Необычный, дизайнерский и немного архитектурный стиль.",
     tags: ["арт", "необычно", "графично", "смело"],
     palette: [
@@ -1415,13 +1416,13 @@ const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
     packaging: "лаконичная, дизайнерская",
     ideal: "Архитектурная композиция с необычным цветком, чистой линией и смелым акцентом.",
     visuals: [
-      { title: "Необычный", description: "Орхидеи, графика и контраст", spriteIndex: 6 },
-      { title: "Скульптурный", description: "Асимметрия и дизайнерская форма", spriteIndex: 10 },
-      { title: "Премиальный", description: "Редкие цветы без лишнего декора", spriteIndex: 7 },
+      { title: "Необычный", description: "Орхидеи, графика и контраст", image: "/archetypes/art-experiment.jpg", spriteIndex: 6 },
+      { title: "Скульптурный", description: "Асимметрия и дизайнерская форма", image: "/archetypes/dramatic-elegance.jpg", spriteIndex: 10 },
+      { title: "Премиальный", description: "Редкие цветы без лишнего декора", image: "/archetypes/quiet-luxury.jpg", spriteIndex: 7 },
     ],
   },
   quiet_luxury: {
-    name: "Quiet Luxury",
+    name: "Тихая роскошь",
     description: "Дорогой, спокойный и очень собранный стиль без демонстративности.",
     tags: ["дорого", "сдержанно", "мягко", "элегантно"],
     palette: [
@@ -1436,13 +1437,13 @@ const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
     packaging: "премиальная и сдержанная",
     ideal: "Спокойная композиция в айвори-шампань гамме с дорогой фактурой и чистой подачей.",
     visuals: [
-      { title: "Тихая роскошь", description: "Айвори, шампань, мягкий объём", spriteIndex: 7 },
-      { title: "Чистый", description: "Бело-зелёная свежесть", spriteIndex: 1 },
-      { title: "Вечерний", description: "Глубже, но всё ещё сдержанно", spriteIndex: 3 },
+      { title: "Тихая роскошь", description: "Айвори, шампань, мягкий объём", image: "/archetypes/quiet-luxury.jpg", spriteIndex: 7 },
+      { title: "Чистый", description: "Бело-зелёная свежесть", image: "/archetypes/white-green-minimalism.jpg", spriteIndex: 1 },
+      { title: "Вечерний", description: "Глубже, но всё ещё сдержанно", image: "/archetypes/dramatic-elegance.jpg", spriteIndex: 3 },
     ],
   },
   classic_femininity: {
-    name: "Classic Grace",
+    name: "Классическая нежность",
     description: "Понятный, женственный и гармоничный стиль, который выглядит уместно всегда.",
     tags: ["классика", "мягко", "гармонично", "женственно"],
     palette: [
@@ -1457,13 +1458,13 @@ const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
     packaging: "романтичная или аккуратная",
     ideal: "Округлый гармоничный букет в розово-кремовой гамме с мягкой зеленью и понятной красотой.",
     visuals: [
-      { title: "Классический", description: "Округлая форма и мягкая палитра", spriteIndex: 11 },
-      { title: "Романтичный", description: "Пионы и пудровые оттенки", spriteIndex: 4 },
-      { title: "Премиальный", description: "Больше объёма и дорогой фактуры", spriteIndex: 7 },
+      { title: "Классический", description: "Округлая форма и мягкая палитра", image: "/archetypes/classic-femininity.jpg", spriteIndex: 11 },
+      { title: "Романтичный", description: "Пионы и пудровые оттенки", image: "/archetypes/garden-romance.jpg", spriteIndex: 4 },
+      { title: "Премиальный", description: "Больше объёма и дорогой фактуры", image: "/archetypes/quiet-luxury.jpg", spriteIndex: 7 },
     ],
   },
   paris_morning: {
-    name: "Paris Morning",
+    name: "Парижское утро",
     description: "Лёгкий, свежий и стильный букет с ощущением красивого утра.",
     tags: ["лёгко", "свежо", "небрежно", "стильно"],
     palette: [
@@ -1478,13 +1479,13 @@ const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
     packaging: "минималистичная или натуральная",
     ideal: "Лёгкий букет с тюльпанами, анемонами и мягкими пастельными оттенками.",
     visuals: [
-      { title: "Утренний", description: "Тюльпаны, воздух и пастель", spriteIndex: 9 },
-      { title: "Нежный", description: "Лёгкая форма и мягкие оттенки", spriteIndex: 0 },
-      { title: "Графичный", description: "Анемоны как тонкий акцент", spriteIndex: 10 },
+      { title: "Утренний", description: "Тюльпаны, воздух и пастель", image: "/archetypes/paris-morning.jpg", spriteIndex: 9 },
+      { title: "Нежный", description: "Лёгкая форма и мягкие оттенки", image: "/archetypes/garden-romance.jpg", spriteIndex: 0 },
+      { title: "Графичный", description: "Анемоны как тонкий акцент", image: "/archetypes/art-experiment.jpg", spriteIndex: 10 },
     ],
   },
   evening_wow: {
-    name: "Evening Wow",
+    name: "Вечерний вау",
     description: "Масштабный, заметный и праздничный стиль для сильного впечатления.",
     tags: ["вау", "объёмно", "ярко", "празднично"],
     palette: [
@@ -1499,9 +1500,9 @@ const archetypeResultDefaults: Record<ArchetypeId, ArchetypeResultDefault> = {
     packaging: "премиальная, но не перегруженная",
     ideal: "Большой вау-букет с выразительной палитрой, объёмом и аккуратной праздничной подачей.",
     visuals: [
-      { title: "Вау", description: "Масштаб и насыщенный цвет", spriteIndex: 8 },
-      { title: "Драма", description: "Вечерний характер и глубина", spriteIndex: 3 },
-      { title: "Праздник", description: "Яркий микс без хаоса", spriteIndex: 2 },
+      { title: "Вау", description: "Масштаб и насыщенный цвет", image: "/archetypes/evening-wow.jpg", spriteIndex: 8 },
+      { title: "Драма", description: "Вечерний характер и глубина", image: "/archetypes/dramatic-elegance.jpg", spriteIndex: 3 },
+      { title: "Праздник", description: "Яркий микс без хаоса", image: "/archetypes/sunny-joy.jpg", spriteIndex: 2 },
     ],
   },
 };
@@ -1662,7 +1663,19 @@ function ArchetypeVisualReferences({ visuals }: { visuals: ArchetypeVisual[] }) 
       <div className="visual-reference-row">
         {visuals.map((visual, index) => (
           <article className="visual-reference-card" key={`${visual.title}-${index}`}>
-            <div className="visual-reference-image" style={visual.image ? { backgroundImage: `url(${visual.image})` } : bouquetPhotoStyle(visual.spriteIndex)} aria-hidden="true" />
+            <div
+              className="visual-reference-image"
+              style={
+                visual.image
+                  ? {
+                    backgroundImage: `url(${visual.image})`,
+                    backgroundPosition: visual.imagePosition ?? "center",
+                    backgroundSize: "cover",
+                  }
+                  : bouquetPhotoStyle(visual.spriteIndex)
+              }
+              aria-hidden="true"
+            />
             <div>
               <h3>{visual.title}</h3>
               <p>{visual.description}</p>
