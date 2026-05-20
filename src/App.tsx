@@ -1829,6 +1829,7 @@ function ResultScreen({
       <ResultFeedback submissionId={submissionId} archetype={profile.primary_archetype} view={resultView} />
 
       <div className="result-secondary-actions">
+        {!isShared && <button className="primary-button" onClick={share}>Поделиться</button>}
         {!isShared && onEdit && <button className="secondary-button" onClick={onEdit}>Редактировать Flower ID</button>}
         {!isShared && <button className="secondary-button" onClick={() => navigate("/my-flower-id")}>Мои Flower ID</button>}
         {!isShared && <button className="text-button" onClick={onRestart}>Пройти заново</button>}
