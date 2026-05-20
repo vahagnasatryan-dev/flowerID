@@ -30,6 +30,7 @@ import {
   saveSubmission,
   sendCollectorDebugRecord,
   startEditingSubmission,
+  syncFlowerRequestStatus,
   track,
 } from "./storage";
 import type { Answers, ArchetypeId, ComputedProfile, FlowerRequest, FlowerReaction, FlowerSubmission, Option, Reaction } from "./types";
@@ -692,6 +693,7 @@ function RequestStatusPage({
 }) {
   const [tick, setTick] = useState(0);
   const [toast, setToast] = useState("");
+  const [syncMessage, setSyncMessage] = useState("");
   const request = useMemo(() => loadFlowerRequest(requestId), [requestId, tick]);
   const submission = useMemo(() => (request?.submissionId ? loadSubmission(request.submissionId) : null), [request?.submissionId, tick]);
   const requestLink = request ? initialLink || `${window.location.origin}/r/${encodeURIComponent(encodeRequestToken(request))}` : "";
@@ -704,6 +706,32 @@ function RequestStatusPage({
     const timer = window.setInterval(() => setTick((value) => value + 1), 2500);
     return () => window.clearInterval(timer);
   }, [requestId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isCollectorConfigured()) {
+      setSyncMessage("Автообновление между устройствами не подключено. Нужен VITE_FLOWER_COLLECTOR_URL.");
+      return () => {
+        cancelled = true;
+      };
+    }
+    syncFlowerRequestStatus(requestId)
+      .then((syncedRequest) => {
+        if (cancelled) return;
+        if (syncedRequest) {
+          setSyncMessage("Статус обновлён");
+          if (syncedRequest.status !== request?.status || syncedRequest.submissionId !== request?.submissionId) {
+            setTick((value) => value + 1);
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSyncMessage("Не удалось обновить статус. Попробуй ещё раз чуть позже.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [request?.status, request?.submissionId, requestId, tick]);
 
   const copy = async (text: string, eventName: string) => {
     await navigator.clipboard.writeText(text);
@@ -735,6 +763,7 @@ function RequestStatusPage({
           </p>
 
           <RequestProgress request={request} />
+          {syncMessage && <p className="subtle request-sync-note">{syncMessage}</p>}
 
           {submission ? (
             <>

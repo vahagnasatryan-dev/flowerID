@@ -126,13 +126,26 @@ function doPost(e) {
 function doGet(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   Object.keys(SHEET_HEADERS).forEach((name) => getSheet(ss, name));
-  return jsonResponse({
+  const params = (e && e.parameter) || {};
+
+  if (params.action === "get_request" && params.request_id) {
+    return apiResponse(
+      {
+        ok: true,
+        request: findLatestRequest(ss, params.request_id),
+        submission: findLatestSubmissionByRequest(ss, params.request_id),
+      },
+      params.callback,
+    );
+  }
+
+  return apiResponse({
     ok: true,
     service: "flower_id_collector",
     setup: true,
     spreadsheet: ss.getUrl(),
     sheets: Object.keys(SHEET_HEADERS),
-  });
+  }, params.callback);
 }
 
 function appendEvent(ss, record, receivedAt) {
@@ -251,6 +264,46 @@ function appendFeedbackFromEvent(ss, record, payload, eventPayload, receivedAt) 
   ]);
 }
 
+function findLatestRequest(ss, requestId) {
+  const sheet = getSheet(ss, "requests");
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0] || [];
+  const idIndex = headers.indexOf("request_id");
+  const payloadIndex = headers.indexOf("payload_json");
+  if (idIndex === -1 || payloadIndex === -1) return null;
+
+  for (let index = rows.length - 1; index >= 1; index -= 1) {
+    if (String(rows[index][idIndex]) === String(requestId)) {
+      return parsePayload(rows[index][payloadIndex]);
+    }
+  }
+  return null;
+}
+
+function findLatestSubmissionByRequest(ss, requestId) {
+  const sheet = getSheet(ss, "submissions");
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0] || [];
+  const requestIndex = headers.indexOf("request_id");
+  const payloadIndex = headers.indexOf("payload_json");
+  if (requestIndex === -1 || payloadIndex === -1) return null;
+
+  for (let index = rows.length - 1; index >= 1; index -= 1) {
+    if (String(rows[index][requestIndex]) === String(requestId)) {
+      return parsePayload(rows[index][payloadIndex]);
+    }
+  }
+  return null;
+}
+
+function parsePayload(value) {
+  try {
+    return value ? JSON.parse(value) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 function getSheet(ss, name) {
   const sheet = ss.getSheetByName(name) || ss.insertSheet(name);
   const headers = SHEET_HEADERS[name];
@@ -289,4 +342,11 @@ function processedRecordKey(recordId) {
 
 function jsonResponse(payload) {
   return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function apiResponse(payload, callback) {
+  if (callback) {
+    return ContentService.createTextOutput(callback + "(" + JSON.stringify(payload) + ");").setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return jsonResponse(payload);
 }

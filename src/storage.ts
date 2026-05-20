@@ -114,6 +114,53 @@ export function loadFlowerRequests(): Record<string, FlowerRequest> {
   }
 }
 
+export async function syncFlowerRequestStatus(id: string) {
+  if (!collectorUrl) return loadFlowerRequest(id);
+  const response = await collectorJsonp<{
+    ok: boolean;
+    request?: FlowerRequest | null;
+    submission?: FlowerSubmission | null;
+  }>({ action: "get_request", request_id: id });
+
+  if (!response?.ok) return loadFlowerRequest(id);
+
+  if (response.submission?.id) {
+    const submissions = loadSubmissions();
+    localStorage.setItem(submissionsKey, JSON.stringify({ ...submissions, [response.submission.id]: response.submission }));
+  }
+
+  if (response.request?.id) {
+    const request = response.submission?.id && response.request.status !== "completed"
+      ? {
+        ...response.request,
+        status: "completed" as const,
+        submissionId: response.submission.id,
+        completed_at: response.request.completed_at ?? response.submission.created_at,
+      }
+      : response.request;
+    const requests = loadFlowerRequests();
+    localStorage.setItem(requestsKey, JSON.stringify({ ...requests, [request.id]: request }));
+    return request;
+  }
+
+  if (response.submission?.id) {
+    const localRequest = loadFlowerRequest(id);
+    if (localRequest) {
+      const completedRequest: FlowerRequest = {
+        ...localRequest,
+        status: "completed",
+        submissionId: response.submission.id,
+        completed_at: localRequest.completed_at ?? response.submission.created_at,
+      };
+      const requests = loadFlowerRequests();
+      localStorage.setItem(requestsKey, JSON.stringify({ ...requests, [completedRequest.id]: completedRequest }));
+      return completedRequest;
+    }
+  }
+
+  return loadFlowerRequest(id);
+}
+
 export function saveResultFeedback(feedback: ResultFeedbackRecord) {
   const feedbackRecords = loadResultFeedback();
   localStorage.setItem(feedbackKey, JSON.stringify({ ...feedbackRecords, [feedback.id]: feedback }));
@@ -231,6 +278,37 @@ function scheduleCollectorFlush(delay = 250) {
     collectorFlushTimer = null;
     flushCollectorQueue();
   }, delay);
+}
+
+function collectorJsonp<T>(params: Record<string, string>) {
+  return new Promise<T | null>((resolve) => {
+    const callbackName = `flowerIdCollector_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const cleanup = (script: HTMLScriptElement) => {
+      delete (window as unknown as Record<string, unknown>)[callbackName];
+      script.remove();
+    };
+    const script = document.createElement("script");
+    const url = new URL(collectorUrl as string);
+    Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+    url.searchParams.set("callback", callbackName);
+    const timeout = window.setTimeout(() => {
+      cleanup(script);
+      resolve(null);
+    }, 6000);
+
+    (window as unknown as Record<string, (payload: T) => void>)[callbackName] = (payload: T) => {
+      window.clearTimeout(timeout);
+      cleanup(script);
+      resolve(payload);
+    };
+    script.onerror = () => {
+      window.clearTimeout(timeout);
+      cleanup(script);
+      resolve(null);
+    };
+    script.src = url.toString();
+    document.head.appendChild(script);
+  });
 }
 
 function loadCollectorQueue(): CollectorRecord[] {
