@@ -772,7 +772,7 @@ function RequestStatusPage({
           <p className="eyebrow">Запрос Flower ID</p>
           <h1>{request.recipientName ? `Flower ID для ${request.recipientName}` : "Статус запроса"}</h1>
           <p className="lead">
-            Следи за прохождением. Когда профиль будет готов, здесь появится карточка и заказ букета по Flower ID.
+            Следи за прохождением. Когда профиль будет готов, здесь появится карточка и возможность заказать букет по Flower ID.
           </p>
 
           <RequestProgress request={request} />
