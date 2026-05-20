@@ -655,7 +655,6 @@ function RequestPage({ navigate }: { navigate: (url: string) => void }) {
       <section className="quiz-frame">
         <Header step={0} onBack={() => navigate("/")} />
         <section className="screen">
-          <p className="eyebrow">Для дарителя</p>
           <h1>Узнай Flower ID человека, которому хочешь подарить цветы</h1>
           <p className="lead">Отправь красивую ссылку: получатель создаст цветочный стиль, а ты сможешь заказать букет без риска ошибиться.</p>
           <div className="contact-panel">
