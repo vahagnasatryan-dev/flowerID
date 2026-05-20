@@ -909,7 +909,6 @@ function RecipientRequestPage({ requestToken, navigate }: { requestToken: string
           {request.occasion && <article className="result-block"><span>Повод</span><p>{request.occasion}</p></article>}
           {request.comment && <article className="message-card">{request.comment}</article>}
           <button className="primary-button" onClick={() => navigate(`/?requestId=${encodeURIComponent(request.id)}`)}>Создать мой Flower ID</button>
-          <button className="text-button" onClick={() => navigate("/")}>Просто создать свой Flower ID</button>
         </section>
       </section>
     </main>
