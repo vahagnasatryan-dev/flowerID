@@ -1,4 +1,4 @@
-import type { Answers, CollectorRecord, CollectorRecordKind, FlowerOrder, FlowerRequest, FlowerSubmission, QuizEvent, ResultFeedbackRecord } from "./types";
+import type { Answers, CollectorRecord, CollectorRecordKind, FlowerOrder, FlowerRequest, FlowerSubmission, GiftRequest, QuizEvent, ResultFeedbackRecord } from "./types";
 
 const answersKey = "flower_portrait_answers";
 const stepKey = "flower_portrait_step";
@@ -7,6 +7,7 @@ const submissionsKey = "flower_id_submissions";
 const requestsKey = "flower_id_requests";
 const feedbackKey = "flower_id_result_feedback";
 const ordersKey = "flower_id_orders";
+const giftRequestsKey = "flower_id_gift_requests";
 const collectorQueueKey = "flower_id_collector_queue";
 const sessionKey = "flower_id_session_id";
 const editingSubmissionKey = "flower_id_editing_submission";
@@ -173,6 +174,25 @@ export function saveFlowerOrder(order: FlowerOrder) {
   enqueueCollectorRecord("order", order.id, order as unknown as Record<string, unknown>);
 }
 
+export function saveGiftRequest(request: GiftRequest) {
+  const requests = loadGiftRequests();
+  localStorage.setItem(giftRequestsKey, JSON.stringify({ ...requests, [request.id]: request }));
+  enqueueCollectorRecord("gift_request", request.id, request as unknown as Record<string, unknown>);
+}
+
+export function loadGiftRequest(id: string) {
+  return loadGiftRequests()[id] ?? null;
+}
+
+export function loadGiftRequests(): Record<string, GiftRequest> {
+  try {
+    const raw = localStorage.getItem(giftRequestsKey);
+    return raw ? (JSON.parse(raw) as Record<string, GiftRequest>) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function loadFlowerOrders(): Record<string, FlowerOrder> {
   try {
     const raw = localStorage.getItem(ordersKey);
@@ -282,6 +302,11 @@ function createCollectorRecordId(kind: CollectorRecordKind, id: string, payload:
   if (kind === "request") {
     const status = String(payload.status || "unknown");
     const moment = String(payload.completed_at || payload.started_at || payload.opened_at || payload.created_at || "");
+    return `${kind}_${id}_${status}_${moment}`;
+  }
+  if (kind === "gift_request") {
+    const status = String(payload.status || "created");
+    const moment = String(payload.updated_at || payload.created_at || "");
     return `${kind}_${id}_${status}_${moment}`;
   }
   return `${kind}_${id}`;

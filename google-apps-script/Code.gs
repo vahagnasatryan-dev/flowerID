@@ -94,6 +94,28 @@ const SHEET_HEADERS = {
     "message",
     "payload_json",
   ],
+  gift_requests: [
+    "received_at",
+    "gift_request_id",
+    "created_at",
+    "updated_at",
+    "session_id",
+    "recipient_type",
+    "occasion",
+    "desired_effect",
+    "taste_knowledge",
+    "avoid_items",
+    "budget",
+    "recommended_style",
+    "selected_option",
+    "selected_card_text",
+    "postcard_text",
+    "telegram_clicked",
+    "source",
+    "status",
+    "last_step",
+    "payload_json",
+  ],
 };
 
 function doPost(e) {
@@ -137,6 +159,11 @@ function doPost(e) {
       }
       if (record.kind === "order") {
         appendOrder(ss, record, receivedAt);
+        markProcessedRecord(record.id);
+        inserted += 1;
+      }
+      if (record.kind === "gift_request") {
+        appendGiftRequest(ss, record, receivedAt);
         markProcessedRecord(record.id);
         inserted += 1;
       }
@@ -314,6 +341,33 @@ function appendOrder(ss, record, receivedAt) {
     payload.source || "",
     payload.status || "",
     payload.message || "",
+    JSON.stringify(payload),
+  ]);
+}
+
+function appendGiftRequest(ss, record, receivedAt) {
+  const sheet = getSheet(ss, "gift_requests");
+  const payload = record.payload || {};
+  sheet.appendRow([
+    receivedAt,
+    payload.id || record.id || "",
+    payload.created_at || record.created_at || "",
+    payload.updated_at || "",
+    payload.session_id || record.session_id || "",
+    payload.recipient_type || "",
+    payload.occasion || "",
+    payload.desired_effect || "",
+    payload.taste_knowledge || "",
+    join(payload.avoid_items),
+    payload.budget || "",
+    payload.recommended_style || "",
+    payload.selected_option || "",
+    payload.selected_card_text || "",
+    payload.postcard_text || "",
+    payload.telegram_clicked ? "TRUE" : "FALSE",
+    payload.source || "",
+    payload.status || "",
+    payload.last_step || "",
     JSON.stringify(payload),
   ]);
 }

@@ -84,7 +84,7 @@ export interface QuizEvent {
   created_at: string;
 }
 
-export type CollectorRecordKind = "event" | "submission" | "request" | "feedback" | "order";
+export type CollectorRecordKind = "event" | "submission" | "request" | "feedback" | "order" | "gift_request";
 
 export interface CollectorRecord {
   id: string;
@@ -148,4 +148,25 @@ export interface FlowerOrder {
   status: "created";
   message: string;
   created_at: string;
+}
+
+export interface GiftRequest {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  session_id: string;
+  recipient_type: string;
+  occasion: string;
+  desired_effect: string;
+  taste_knowledge: string;
+  avoid_items: string[];
+  budget: string;
+  recommended_style: string;
+  selected_option: string;
+  selected_card_text: string;
+  postcard_text: string;
+  telegram_clicked: boolean;
+  source: string;
+  status: "created" | "telegram_clicked" | "ordered" | "completed" | "cancelled";
+  last_step: string;
 }
