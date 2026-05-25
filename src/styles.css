@@ -1461,6 +1461,67 @@ body {
   text-align: center;
 }
 
+.landing-paths {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.landing-path-card {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(36, 27, 22, 0.08);
+  border-radius: 24px;
+  background: rgba(255, 250, 246, 0.82);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  padding: 18px;
+  text-align: left;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.landing-path-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(109, 7, 31, 0.28);
+  background: #fffaf6;
+}
+
+.landing-path-card.primary-path {
+  background: #2a1d18;
+  color: #fffaf6;
+}
+
+.landing-path-card span {
+  color: #8a7f77;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.landing-path-card.primary-path span {
+  color: rgba(255, 250, 246, 0.68);
+}
+
+.landing-path-card strong {
+  font-size: 1.16rem;
+  font-weight: 950;
+  line-height: 1.08;
+}
+
+.landing-path-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.34;
+}
+
+.landing-path-card.primary-path p {
+  color: rgba(255, 250, 246, 0.74);
+}
+
 .landing-request-link {
   width: 100%;
   min-height: auto;
@@ -2491,6 +2552,11 @@ body {
 
   .landing-actions {
     max-width: 380px;
+  }
+
+  .landing-paths {
+    max-width: 520px;
+    grid-template-columns: 1fr;
   }
 
   .landing-visual {

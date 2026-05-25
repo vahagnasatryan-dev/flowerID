@@ -478,34 +478,42 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
         <section className="screen hero-screen landing-screen">
           <div className="hero-layout">
             <div className="hero-copy">
-              <p className="eyebrow">Цветочный профиль</p>
-              <h1>Создай свой<br />цветочный профиль</h1>
+              <p className="eyebrow">Flower ID</p>
+              <h1>Букеты без догадок</h1>
               <p className="lead">
-                Узнай, какие букеты тебе действительно подходят: стиль, палитра, любимые цветы, аромат, упаковка и стоп-лист.
+                Flower ID помогает понять вкус человека, подобрать букет под ситуацию и оформить заказ без риска ошибиться.
               </p>
-              <div className="hero-actions landing-actions">
-                <button className="primary-button" onClick={start}>Создать мой Flower ID</button>
-                <p className="cta-note">2 минуты · результатом можно поделиться</p>
-                <button className="landing-request-link" onClick={() => {
+              <div className="landing-paths" aria-label="Сценарии Flower ID">
+                <button className="landing-path-card primary-path" onClick={start}>
+                  <span>Для себя</span>
+                  <strong>Создать мой Flower ID</strong>
+                  <p>Чтобы близким было проще дарить тебе букеты, которые действительно подходят.</p>
+                </button>
+                <button className="landing-path-card" onClick={() => {
                   track("gift_concierge_link_clicked", { source: "landing" });
                   navigate("/gift");
                 }}>
-                  <span>Хотите подарить цветы?</span>
-                  Подобрать букет с Flower ID →
+                  <span>Для подарка</span>
+                  <strong>Подобрать букет</strong>
+                  <p>Для конкретного человека, повода, эмоции и бюджета. Получите 3 персональных варианта.</p>
                 </button>
-                <button className="landing-request-link" onClick={() => {
+                <button className="landing-path-card" onClick={() => {
                   track("request_flower_id_clicked", { source: "landing" });
                   navigate("/request");
                 }}>
-                  <span>Уже знаете кому?</span>
-                  Узнать Flower ID другого человека →
+                  <span>Для близкого</span>
+                  <strong>Узнать Flower ID другого человека</strong>
+                  <p>Отправьте красивую ссылку, а потом закажите букет по готовому профилю.</p>
                 </button>
+              </div>
+              <div className="hero-actions landing-actions">
+                <p className="cta-note">2–3 минуты · без регистрации · заказ через Telegram</p>
                 <button className="landing-my-link" onClick={() => navigate("/my-flower-id")}>Мои сохраненные Flower ID</button>
               </div>
               <div className="landing-benefit">
-                <strong>Близким проще выбрать.</strong>
-                <strong>Тебе приятнее получать.</strong>
-                <p>Поделись Flower ID — и тебе будут дарить букеты, которые действительно про тебя.</p>
+                <strong>Создай профиль.</strong>
+                <strong>Подбери подарок.</strong>
+                <p>Один сервис для ситуаций, где хочется подарить красиво и уместно.</p>
               </div>
               <div className="landing-guarantees" aria-label="Гарантии Flower ID">
                 <article>
