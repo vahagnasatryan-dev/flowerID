@@ -478,59 +478,83 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
         <section className="screen hero-screen landing-screen">
           <div className="hero-layout">
             <div className="hero-copy">
-              <p className="eyebrow">Цветочный консьерж</p>
-              <h1>Подарите букет, который попадёт в человека</h1>
+              <p className="eyebrow">Цветочный профиль</p>
+              <h1>Создай свой<br />цветочный профиль</h1>
               <p className="lead">
-                Flower ID подберёт цветы под вкус получателя, повод и ваш бюджет. Без догадок. Без случайных букетов. Без риска ошибиться.
+                Узнай, какие букеты тебе действительно подходят: стиль, палитра, любимые цветы, аромат, упаковка и стоп-лист.
               </p>
               <div className="hero-actions landing-actions">
-                <button className="primary-button" onClick={() => {
-                  track("start_gift_flow_clicked", { source: "landing" });
+                <button className="primary-button" onClick={start}>Создать мой Flower ID</button>
+                <p className="cta-note">2 минуты · результатом можно поделиться</p>
+                <button className="landing-request-link" onClick={() => {
+                  track("gift_concierge_link_clicked", { source: "landing" });
                   navigate("/gift");
-                }}>Подобрать букет</button>
-                <button className="secondary-button" onClick={start}>Создать мой Flower ID</button>
-                <p className="cta-note">3 минуты · 3 персональных варианта · заказ через Telegram</p>
+                }}>
+                  <span>Хотите подарить цветы?</span>
+                  Подобрать букет с Flower ID →
+                </button>
+                <button className="landing-request-link" onClick={() => {
+                  track("request_flower_id_clicked", { source: "landing" });
+                  navigate("/request");
+                }}>
+                  <span>Уже знаете кому?</span>
+                  Узнать Flower ID другого человека →
+                </button>
                 <button className="landing-my-link" onClick={() => navigate("/my-flower-id")}>Мои сохраненные Flower ID</button>
               </div>
               <div className="landing-benefit">
-                <strong>Вы выбираете не каталог.</strong>
-                <strong>Вы выбираете человека, повод и чувство.</strong>
-                <p>А Flower ID собирает 3 уместных решения, с которыми проще уверенно перейти к заказу.</p>
+                <strong>Близким проще выбрать.</strong>
+                <strong>Тебе приятнее получать.</strong>
+                <p>Поделись Flower ID — и тебе будут дарить букеты, которые действительно про тебя.</p>
+              </div>
+              <div className="landing-guarantees" aria-label="Гарантии Flower ID">
+                <article>
+                  <strong>Свежесть</strong>
+                  <p>Собираем букет перед доставкой и подбираем стойкие сезонные цветы.</p>
+                </article>
+                <article>
+                  <strong>Удобная доставка</strong>
+                  <p>В Telegram уточним адрес, время и детали, чтобы всё прошло спокойно.</p>
+                </article>
+                <article>
+                  <strong>Как на фото</strong>
+                  <p>Перед отправкой согласуем внешний вид, чтобы ожидания совпали с результатом.</p>
+                </article>
               </div>
             </div>
             <div className="landing-visual">
               <div className="landing-flower" aria-hidden="true" />
               <article className="flower-id-preview-card" aria-label="Пример результата Flower ID">
                 <div className="preview-card-top">
-                  <span>Пример подбора</span>
-                  <strong>3 варианта</strong>
+                  <span>Пример результата</span>
+                  <strong>Flower ID</strong>
                 </div>
                 <div className="preview-photo" aria-hidden="true" />
                 <div className="preview-card-body">
-                  <p className="preview-name">Девушке · просто порадовать</p>
-                  <h2>Нежная садовая романтика</h2>
+                  <p className="preview-name">Анна — Мягкий минимализм</p>
+                  <h2>Профиль, который легко отправить близким</h2>
                   <div className="preview-tags" aria-label="Стиль примера">
-                    <span>точно понравится</span>
-                    <span>вау</span>
-                    <span>нежный жест</span>
+                    <span>нежно</span>
+                    <span>чисто</span>
+                    <span>воздушно</span>
                   </div>
                   <div className="preview-section">
-                    <strong>Бюджет</strong>
+                    <strong>Палитра</strong>
                     <div className="preview-palette" aria-hidden="true">
                       <i />
                       <i />
                       <i />
                     </div>
-                    <p>5 000–8 000 ₽ · без лилий · без декора</p>
+                    <p>молочный · пудровый · шалфейный</p>
                   </div>
                   <div className="preview-mini-grid">
                     <div className="preview-section">
-                      <strong>Стиль</strong>
-                      <p>пастель · сезонные цветы · лёгкая упаковка</p>
+                      <strong>Подходит</strong>
+                      <p>ранункулюсы · анемоны · фрезия</p>
                     </div>
                     <div className="preview-section">
-                      <strong>Открытка</strong>
-                      <p>готовый текст можно выбрать сразу</p>
+                      <strong>Не дарить</strong>
+                      <p>красные розы · яркую упаковку</p>
                     </div>
                   </div>
                 </div>
@@ -667,6 +691,7 @@ const giftStyleGuide: Record<GiftStyleId, Omit<GiftRecommendation, "styleId" | "
 };
 
 function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) => void; startQuiz: () => void }) {
+  const [showIntro, setShowIntro] = useState(true);
   const [step, setStep] = useState<GiftStep>("recipient");
   const [request, setRequest] = useState<GiftRequest>(() => {
     const existingId = sessionStorage.getItem(activeGiftRequestKey);
@@ -773,6 +798,59 @@ function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) =>
     }
     setStep(giftSteps[index - 1].id);
   };
+
+  if (showIntro) {
+    return (
+      <main className="app-shell gift-app-shell">
+        <section className="quiz-frame gift-frame">
+          <Header step={0} onBack={() => navigate("/")} note="3 минуты · 3 варианта" />
+          <section className="screen hero-screen gift-intro-screen">
+            <div className="gift-intro-copy">
+              <p className="eyebrow">Flower ID Gift Concierge</p>
+              <h1>Подарите букет, который попадёт в человека</h1>
+              <p className="lead">
+                Flower ID подберёт цветы под вкус получателя, повод и ваш бюджет. Без догадок. Без случайных букетов. Без риска ошибиться.
+              </p>
+              <div className="hero-actions landing-actions">
+                <button className="primary-button" onClick={() => {
+                  track("start_gift_flow_clicked", { source: "gift_intro" });
+                  setShowIntro(false);
+                }}>Подобрать букет</button>
+                <button className="secondary-button" onClick={() => {
+                  sessionStorage.setItem(activeQuizKey, "1");
+                  startQuiz();
+                  navigate("/");
+                }}>Создать мой Flower ID</button>
+                <p className="cta-note">3 минуты · 3 персональных варианта · заказ через Telegram</p>
+              </div>
+            </div>
+            <div className="gift-intro-preview">
+              <article className="flower-id-preview-card">
+                <div className="preview-card-top">
+                  <span>Пример подбора</span>
+                  <strong>3 варианта</strong>
+                </div>
+                <div className="preview-photo" aria-hidden="true" />
+                <div className="preview-card-body">
+                  <p className="preview-name">Девушке · просто порадовать</p>
+                  <h2>Нежная садовая романтика</h2>
+                  <div className="preview-tags">
+                    <span>точно понравится</span>
+                    <span>вау</span>
+                    <span>нежный жест</span>
+                  </div>
+                  <div className="preview-section">
+                    <strong>Что учтём</strong>
+                    <p>повод · эффект · бюджет · стоп-факторы</p>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </section>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell gift-app-shell">
