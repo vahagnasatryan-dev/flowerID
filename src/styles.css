@@ -3388,6 +3388,37 @@ body {
   color: var(--ink);
 }
 
+.gift-pending-card {
+  display: grid;
+  gap: 14px;
+  border-radius: 32px;
+  background: #fffaf4;
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.gift-pending-card span {
+  color: var(--burgundy);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gift-pending-card h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.9rem, 7vw, 3rem);
+  line-height: 0.98;
+}
+
+.gift-pending-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
 .gift-style-card,
 .gift-final-card {
   display: grid;
@@ -3598,6 +3629,79 @@ body {
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.gift-admin-screen {
+  gap: 22px;
+}
+
+.gift-admin-screen h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(2rem, 7vw, 3.4rem);
+  line-height: 0.98;
+}
+
+.gift-admin-field,
+.gift-admin-card label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gift-admin-field input,
+.gift-admin-card input,
+.gift-admin-card textarea {
+  width: 100%;
+  border: 1px solid rgba(35, 24, 20, 0.1);
+  border-radius: 20px;
+  background: #fffaf4;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  outline: none;
+  padding: 15px 16px;
+  text-transform: none;
+}
+
+.gift-admin-card textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.gift-admin-options {
+  display: grid;
+  gap: 14px;
+}
+
+.gift-admin-card {
+  display: grid;
+  gap: 14px;
+  border-radius: 30px;
+  background: #f7f1eb;
+  padding: 18px;
+}
+
+.gift-admin-card strong {
+  color: var(--ink);
+  font-size: 1.15rem;
+  font-weight: 950;
+}
+
+.gift-admin-saved {
+  border-radius: 24px;
+  background: #edf3ea;
+  color: var(--ink);
+  font-weight: 850;
+  line-height: 1.35;
+  margin: 0;
+  padding: 16px;
 }
 
 @media (min-width: 760px) {

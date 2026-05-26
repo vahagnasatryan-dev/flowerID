@@ -20,7 +20,9 @@ import {
   loadFlowerRequest,
   loadFlowerOrders,
   loadFlowerRequests,
+  loadGiftBouquetOptions,
   loadGiftRequest,
+  loadGiftRequests,
   loadStep,
   loadSubmission,
   loadSubmissions,
@@ -28,6 +30,7 @@ import {
   saveAnswers,
   saveFlowerOrder,
   saveFlowerRequest,
+  saveGiftBouquetOptions,
   saveGiftRequest,
   saveResultFeedback,
   saveStep,
@@ -35,9 +38,10 @@ import {
   sendCollectorDebugRecord,
   startEditingSubmission,
   syncFlowerRequestStatus,
+  syncGiftBouquetOptions,
   track,
 } from "./storage";
-import type { Answers, ArchetypeId, ComputedProfile, FlowerOrder, FlowerRequest, FlowerReaction, FlowerSubmission, GiftRequest, Option, Reaction } from "./types";
+import type { Answers, ArchetypeId, ComputedProfile, FlowerOrder, FlowerRequest, FlowerReaction, FlowerSubmission, GiftBouquetProposal, GiftRequest, Option, Reaction } from "./types";
 
 type OrderDraft = {
   budget: string;
@@ -49,7 +53,7 @@ type OrderDraft = {
   comment: string;
 };
 
-type GiftStep = "recipient" | "occasion" | "effect" | "taste" | "budget" | "result" | "postcard" | "final";
+type GiftStep = "recipient" | "occasion" | "effect" | "taste" | "budget" | "result" | "final";
 
 type GiftOption = {
   id: string;
@@ -59,14 +63,7 @@ type GiftOption = {
 
 type GiftStyleId = "garden_romance" | "quiet_luxury" | "bright_joy" | "business_elegance" | "wow_drama" | "warm_classic";
 
-type GiftBouquetOption = {
-  id: string;
-  title: string;
-  price: string;
-  description: string;
-  cta: string;
-  image: string;
-};
+type GiftBouquetOption = GiftBouquetProposal;
 
 type GiftRecommendation = {
   styleId: GiftStyleId;
@@ -157,6 +154,7 @@ export default function App() {
   }
   if (path === "/request") return <RequestPage navigate={navigate} />;
   if (path === "/gift") return <GiftConciergePage navigate={navigate} />;
+  if (path === "/gift-admin") return <GiftAdminPage navigate={navigate} />;
   if (path.startsWith("/request-status/")) return <RequestStatusPage requestId={decodeURIComponent(path.split("/request-status/")[1] || "")} navigate={navigate} />;
   if (path.startsWith("/order-next/")) return <OrderNextStepsPage orderId={decodeURIComponent(path.split("/order-next/")[1] || "")} navigate={navigate} />;
   if (path === "/my-flower-id") return <MyFlowerIdPage navigate={navigate} startQuiz={() => setQuizActive(true)} />;
@@ -582,7 +580,6 @@ const giftSteps: Array<{ id: GiftStep; label: string }> = [
   { id: "taste", label: "Вкус" },
   { id: "budget", label: "Бюджет" },
   { id: "result", label: "Варианты" },
-  { id: "postcard", label: "Открытка" },
   { id: "final", label: "Telegram" },
 ];
 
@@ -620,12 +617,6 @@ const budgetOptions: GiftOption[] = [
   { id: "5000_8000", label: "5 000–8 000 ₽" },
   { id: "8000_15000", label: "8 000–15 000 ₽" },
   { id: "15000_plus", label: "15 000+ ₽" },
-];
-
-const postcardOptions = [
-  { id: "soft", label: "Нежно", text: "Просто захотелось сделать твой день чуть красивее." },
-  { id: "romantic", label: "Романтично", text: "Без повода. Просто потому что ты — это ты." },
-  { id: "formal", label: "Сдержанно", text: "С тёплыми пожеланиями и благодарностью." },
 ];
 
 const giftStyleGuide: Record<GiftStyleId, Omit<GiftRecommendation, "styleId" | "options">> = {
@@ -713,13 +704,13 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
     sessionStorage.setItem(activeGiftRequestKey, next.id);
     return next;
   });
-  const [personalNote, setPersonalNote] = useState("");
   const [showContactModal, setShowContactModal] = useState(false);
   const [telegramContact, setTelegramContact] = useState(request.telegram_contact || "");
   const [orderAccepted, setOrderAccepted] = useState(false);
+  const [bouquetOptions, setBouquetOptions] = useState<GiftBouquetOption[]>(() => loadGiftBouquetOptions(request.id));
   const currentStepIndex = giftSteps.findIndex((item) => item.id === step);
   const recommendation = useMemo(() => buildGiftRecommendation(request), [request]);
-  const selectedOption = recommendation.options.find((item) => item.id === request.selected_option) ?? null;
+  const selectedOption = bouquetOptions.find((item) => item.id === request.selected_option) ?? null;
   const savedFlowerIds = useMemo(() => Object.values(loadSubmissions()).slice(0, 3), []);
 
   useEffect(() => {
@@ -729,6 +720,17 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
   useEffect(() => {
     saveGiftRequest(request);
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    setBouquetOptions(loadGiftBouquetOptions(request.id));
+    syncGiftBouquetOptions(request.id).then((options) => {
+      if (alive) setBouquetOptions(options);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [request.id, step]);
 
   const updateGiftRequest = (patch: Partial<GiftRequest>, nextStep?: GiftStep, eventName?: string) => {
     const updated: GiftRequest = {
@@ -753,11 +755,7 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
       selected_option: option.id,
       selected_card_text: option.description,
       recommended_style: recommendation.styleName,
-    }, "postcard", "bouquet_option_selected");
-  };
-
-  const choosePostcard = (text: string) => {
-    updateGiftRequest({ postcard_text: text }, "final", "postcard_selected");
+    }, "final", "bouquet_option_selected");
   };
 
   const openGiftTelegram = () => {
@@ -987,17 +985,8 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
             <GiftRecommendationScreen
               request={request}
               recommendation={recommendation}
+              options={bouquetOptions}
               onSelect={chooseBouquet}
-            />
-          )}
-
-          {step === "postcard" && (
-            <GiftPostcardScreen
-              selectedText={request.postcard_text}
-              note={personalNote}
-              onNote={setPersonalNote}
-              onChoose={choosePostcard}
-              onCustom={() => choosePostcard(personalNote.trim() || "Тёплые слова напишу сам.")}
             />
           )}
 
@@ -1014,7 +1003,7 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
           {step !== "recipient" && step !== "final" && (
             <button className="text-button gift-back-inline" onClick={goBack}>Назад</button>
           )}
-          {step === "final" && <button className="text-button gift-back-inline" onClick={() => setStep("postcard")}>Назад к открытке</button>}
+          {step === "final" && <button className="text-button gift-back-inline" onClick={() => setStep("result")}>Назад к вариантам</button>}
         </section>
       </section>
       {showContactModal && (
@@ -1155,10 +1144,10 @@ function GiftBottomNav({ onBack, onNext, nextDisabled }: { onBack: () => void; o
   );
 }
 
-function GiftRecommendationScreen({ request, recommendation, onSelect }: { request: GiftRequest; recommendation: GiftRecommendation; onSelect: (option: GiftBouquetOption) => void }) {
+function GiftRecommendationScreen({ request, recommendation, options, onSelect }: { request: GiftRequest; recommendation: GiftRecommendation; options: GiftBouquetOption[]; onSelect: (option: GiftBouquetOption) => void }) {
   useEffect(() => {
-    track("recommendation_viewed", { giftRequestId: request.id, recommendedStyle: recommendation.styleName, budget: request.budget });
-  }, [recommendation.styleName, request.budget, request.id]);
+    track("recommendation_viewed", { giftRequestId: request.id, recommendedStyle: recommendation.styleName, budget: request.budget, realOptions: options.length });
+  }, [recommendation.styleName, options.length, request.budget, request.id]);
 
   return (
     <section className="gift-result">
@@ -1170,43 +1159,27 @@ function GiftRecommendationScreen({ request, recommendation, onSelect }: { reque
         <span>Эффект: {giftEffectLabel(request)}</span>
         <span>Бюджет: {giftLabel(budgetOptions, request.budget)}</span>
       </div>
-      <p className="gift-result-brief">
-        Лучший стиль: <strong>{recommendation.styleName}</strong>. {recommendation.description}
-      </p>
-      <div className="gift-bouquet-options">
-        {recommendation.options.map((option) => (
-          <article className="gift-bouquet-card" key={option.id}>
-            <div className="gift-bouquet-image" style={{ backgroundImage: `url(${option.image})` }} />
-            <span>{option.price}</span>
-            <h2>{option.title}</h2>
-            <p>{option.description}</p>
-            <button className="primary-button" onClick={() => onSelect(option)}>{option.cta}</button>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function GiftPostcardScreen({ selectedText, note, onNote, onChoose, onCustom }: { selectedText: string; note: string; onNote: (value: string) => void; onChoose: (text: string) => void; onCustom: () => void }) {
-  return (
-    <section className="gift-postcard">
-      <p className="eyebrow">Открытка</p>
-      <h1>Что написать в открытке?</h1>
-      <div className="gift-postcard-options">
-        {postcardOptions.map((option) => (
-          <article className={`gift-postcard-card ${selectedText === option.text ? "selected" : ""}`} key={option.id}>
-            <span>{option.label}</span>
-            <p>{option.text}</p>
-            <button className="secondary-button" onClick={() => onChoose(option.text)}>Выбрать этот текст</button>
-          </article>
-        ))}
-      </div>
-      <label className="gift-personal-note">
-        Сделать более личным
-        <textarea className="text-area" value={note} placeholder="Добавьте 1–2 детали, и мы сделаем текст теплее." onChange={(event) => onNote(event.target.value)} />
-      </label>
-      <button className="primary-button" onClick={onCustom}>Напишу сам / использовать мой текст</button>
+      {options.length === 0 ? (
+        <article className="gift-pending-card">
+          <span>Заявка {request.id}</span>
+          <h2>Мы подбираем 3 идеальных варианта</h2>
+          <p>
+            Флорист посмотрит ответы, бюджет и повод. Скоро здесь появятся реальные букеты с фото, описанием, ценой и возможностью заказать.
+          </p>
+        </article>
+      ) : (
+        <div className="gift-bouquet-options">
+          {options.map((option) => (
+            <article className="gift-bouquet-card" key={option.id}>
+              <div className="gift-bouquet-image" style={{ backgroundImage: `url(${option.image})` }} />
+              <span>{option.price}</span>
+              <h2>{option.title}</h2>
+              <p>{option.description}</p>
+              <button className="primary-button" onClick={() => onSelect(option)}>{option.cta || "Заказать этот букет"}</button>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -1238,7 +1211,6 @@ function GiftFinalScreen({
           <div><dt>Повод</dt><dd>{giftOccasionLabel(request)}</dd></div>
           <div><dt>Эффект</dt><dd>{giftEffectLabel(request)}</dd></div>
           <div><dt>Стиль</dt><dd>{recommendation.styleName}</dd></div>
-          <div><dt>Открытка</dt><dd>{request.postcard_text || "без текста"}</dd></div>
         </dl>
       </article>
       <p className="lead">Дальше мы уточним адрес и время доставки в Telegram. Перед отправкой вы получите фото готового букета на согласование.</p>
@@ -1276,6 +1248,102 @@ function GiftContactModal({ value, onChange, onClose, onSubmit }: { value: strin
   );
 }
 
+function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
+  const params = new URLSearchParams(window.location.search);
+  const giftRequestList = Object.values(loadGiftRequests());
+  const initialRequestId = params.get("requestId") || giftRequestList[giftRequestList.length - 1]?.id || "";
+  const [requestId, setRequestId] = useState(initialRequestId);
+  const [saved, setSaved] = useState(false);
+  const [options, setOptions] = useState<GiftBouquetOption[]>(() => createAdminBouquetDrafts(initialRequestId));
+
+  useEffect(() => {
+    setOptions(createAdminBouquetDrafts(requestId));
+    setSaved(false);
+  }, [requestId]);
+
+  const updateOption = (index: number, patch: Partial<GiftBouquetOption>) => {
+    setOptions((current) => current.map((option, optionIndex) => optionIndex === index ? { ...option, ...patch } : option));
+    setSaved(false);
+  };
+
+  const saveOptions = () => {
+    const now = new Date().toISOString();
+    const readyOptions = options
+      .map((option, index) => ({
+        ...option,
+        id: option.id || `proposal_${index + 1}`,
+        gift_request_id: requestId,
+        cta: option.cta || "Заказать этот букет",
+        created_at: option.created_at || now,
+        updated_at: now,
+      }))
+      .filter((option) => option.title.trim() && option.price.trim() && option.description.trim() && option.image.trim());
+    saveGiftBouquetOptions(requestId, readyOptions);
+    track("gift_bouquets_saved", { giftRequestId: requestId, count: readyOptions.length });
+    setOptions(readyOptions.length ? readyOptions : createAdminBouquetDrafts(requestId));
+    setSaved(true);
+  };
+
+  return (
+    <main className="app-shell gift-app-shell">
+      <section className="quiz-frame gift-frame">
+        <Header step={0} onBack={() => navigate("/gift")} note="служебный экран" />
+        <section className="screen gift-admin-screen">
+          <p className="eyebrow">Flower ID Admin</p>
+          <h1>Реальные варианты букета</h1>
+          <p className="lead">Добавьте фото, цену и описание по номеру заявки. После сохранения варианты появятся на экране клиента.</p>
+          <label className="gift-admin-field">
+            Номер заявки
+            <input value={requestId} onChange={(event) => setRequestId(event.target.value)} placeholder="gift_..." />
+          </label>
+          <div className="gift-admin-options">
+            {options.map((option, index) => (
+              <article className="gift-admin-card" key={option.id || index}>
+                <strong>Вариант {index + 1}</strong>
+                <label>
+                  Название
+                  <input value={option.title} onChange={(event) => updateOption(index, { title: event.target.value })} placeholder="Например: Точно понравится" />
+                </label>
+                <label>
+                  Цена
+                  <input value={option.price} onChange={(event) => updateOption(index, { price: event.target.value })} placeholder="Например: 7 500 ₽" />
+                </label>
+                <label>
+                  Фото
+                  <input value={option.image} onChange={(event) => updateOption(index, { image: event.target.value })} placeholder="/archetypes/quiet-luxury.jpg или https://..." />
+                </label>
+                <label>
+                  Описание
+                  <textarea value={option.description} onChange={(event) => updateOption(index, { description: event.target.value })} placeholder="Что входит в букет и почему он подходит" />
+                </label>
+              </article>
+            ))}
+          </div>
+          {saved && <p className="gift-admin-saved">Сохранено. На клиентском экране появятся реальные варианты.</p>}
+          <button className="primary-button" disabled={!requestId.trim()} onClick={saveOptions}>Сохранить варианты</button>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function createAdminBouquetDrafts(requestId: string): GiftBouquetOption[] {
+  const existing = requestId ? loadGiftBouquetOptions(requestId) : [];
+  if (existing.length) return existing;
+  const now = new Date().toISOString();
+  return [0, 1, 2].map((index) => ({
+    id: `proposal_${index + 1}`,
+    gift_request_id: requestId,
+    title: "",
+    price: "",
+    description: "",
+    image: "",
+    cta: "Заказать этот букет",
+    created_at: now,
+    updated_at: now,
+  }));
+}
+
 function buildGiftRecommendation(request: GiftRequest): GiftRecommendation {
   const styleId = chooseGiftStyle(request);
   const guide = giftStyleGuide[styleId];
@@ -1307,6 +1375,7 @@ function chooseGiftStyle(request: GiftRequest): GiftStyleId {
 
 function buildGiftBouquetOptions(request: GiftRequest, styleId: GiftStyleId, guide: Omit<GiftRecommendation, "styleId" | "options">): GiftBouquetOption[] {
   const budget = giftLabel(budgetOptions, request.budget) || "5 000–8 000 ₽";
+  const now = new Date().toISOString();
   const safeAvoid = request.avoid_items.includes("unknown") || !request.avoid_items.length
     ? "без спорного декора и резких решений"
     : `без ${request.avoid_items.map((id) => giftLabel(avoidGiftOptions, id).toLowerCase()).join(", ")}`;
@@ -1317,27 +1386,36 @@ function buildGiftBouquetOptions(request: GiftRequest, styleId: GiftStyleId, gui
   return [
     {
       id: "safe_match",
+      gift_request_id: request.id,
       title: "Точно понравится",
       price: budget,
       description: `Персональный букет в стиле «${guide.styleName.toLowerCase()}»: ${baseFlowers}. ${capitalize(safeAvoid)}.`,
       cta: "Выбрать этот",
       image,
+      created_at: now,
+      updated_at: now,
     },
     {
       id: "wow_effect",
+      gift_request_id: request.id,
       title: "Вау, но деликатно",
       price: getGiftPriceVariant(request.budget, "higher"),
       description: `Более объёмная версия в том же стиле с ${wowFlowers}. Подойдёт, если хочется произвести впечатление.`,
       cta: "Хочу вау-версию",
       image: styleId === "bright_joy" ? "/archetypes/evening-wow.jpg" : image,
+      created_at: now,
+      updated_at: now,
     },
     {
       id: "gentle_gesture",
+      gift_request_id: request.id,
       title: "Просто порадовать",
       price: getGiftPriceVariant(request.budget, "lower"),
       description: "Камерный букет в мягкой гамме. Хорошо подходит для подарка без повода, лёгкого знака внимания или тёплого жеста.",
       cta: "Заказать как жест внимания",
       image: styleId === "quiet_luxury" ? "/archetypes/white-green-minimalism.jpg" : "/archetypes/paris-morning.jpg",
+      created_at: now,
+      updated_at: now,
     },
   ];
 }
@@ -1357,7 +1435,6 @@ function buildGiftTelegramMessage(request: GiftRequest, selectedOption: GiftBouq
     request.taste_style_hint || request.taste_palette_hint || request.taste_format_hint
       ? `Уточнения по вкусу: ${[request.taste_style_hint, request.taste_palette_hint, request.taste_format_hint].filter(Boolean).join("; ")}`
       : "",
-    `Открытка: ${request.postcard_text || "без текста"}`,
   ].filter(Boolean).join("\n");
 }
 

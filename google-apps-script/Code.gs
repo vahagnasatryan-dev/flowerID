@@ -125,6 +125,13 @@ const SHEET_HEADERS = {
     "last_step",
     "payload_json",
   ],
+  gift_bouquets: [
+    "received_at",
+    "gift_request_id",
+    "updated_at",
+    "options_json",
+    "payload_json",
+  ],
 };
 
 function doPost(e) {
@@ -176,6 +183,11 @@ function doPost(e) {
         markProcessedRecord(record.id);
         inserted += 1;
       }
+      if (record.kind === "gift_bouquets") {
+        appendGiftBouquets(ss, record, receivedAt);
+        markProcessedRecord(record.id);
+        inserted += 1;
+      }
     });
 
     return jsonResponse({ ok: true, inserted, skipped });
@@ -197,6 +209,16 @@ function doGet(e) {
         ok: true,
         request: findLatestRequest(ss, params.request_id),
         submission: findLatestSubmissionByRequest(ss, params.request_id),
+      },
+      params.callback,
+    );
+  }
+
+  if (params.action === "get_gift_bouquets" && params.gift_request_id) {
+    return apiResponse(
+      {
+        ok: true,
+        options: findLatestGiftBouquets(ss, params.gift_request_id),
       },
       params.callback,
     );
@@ -392,6 +414,18 @@ function appendGiftRequest(ss, record, receivedAt) {
   sheet.appendRow(headers.map((header) => valuesByHeader[header] || ""));
 }
 
+function appendGiftBouquets(ss, record, receivedAt) {
+  const sheet = getSheet(ss, "gift_bouquets");
+  const payload = record.payload || {};
+  sheet.appendRow([
+    receivedAt,
+    payload.gift_request_id || record.id || "",
+    payload.updated_at || record.created_at || "",
+    JSON.stringify(payload.options || []),
+    JSON.stringify(payload),
+  ]);
+}
+
 function findLatestRequest(ss, requestId) {
   const sheet = getSheet(ss, "requests");
   const rows = sheet.getDataRange().getValues();
@@ -422,6 +456,23 @@ function findLatestSubmissionByRequest(ss, requestId) {
     }
   }
   return null;
+}
+
+function findLatestGiftBouquets(ss, requestId) {
+  const sheet = getSheet(ss, "gift_bouquets");
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0] || [];
+  const requestIndex = headers.indexOf("gift_request_id");
+  const optionsIndex = headers.indexOf("options_json");
+  if (requestIndex === -1 || optionsIndex === -1) return [];
+
+  for (let index = rows.length - 1; index >= 1; index -= 1) {
+    if (String(rows[index][requestIndex]) === String(requestId)) {
+      const options = parsePayload(rows[index][optionsIndex]);
+      return Array.isArray(options) ? options : [];
+    }
+  }
+  return [];
 }
 
 function parsePayload(value) {

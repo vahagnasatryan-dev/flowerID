@@ -1,4 +1,4 @@
-import type { Answers, CollectorRecord, CollectorRecordKind, FlowerOrder, FlowerRequest, FlowerSubmission, GiftRequest, QuizEvent, ResultFeedbackRecord } from "./types";
+import type { Answers, CollectorRecord, CollectorRecordKind, FlowerOrder, FlowerRequest, FlowerSubmission, GiftBouquetProposal, GiftRequest, QuizEvent, ResultFeedbackRecord } from "./types";
 
 const answersKey = "flower_portrait_answers";
 const stepKey = "flower_portrait_step";
@@ -8,6 +8,7 @@ const requestsKey = "flower_id_requests";
 const feedbackKey = "flower_id_result_feedback";
 const ordersKey = "flower_id_orders";
 const giftRequestsKey = "flower_id_gift_requests";
+const giftBouquetsKey = "flower_id_gift_bouquets";
 const collectorQueueKey = "flower_id_collector_queue";
 const sessionKey = "flower_id_session_id";
 const editingSubmissionKey = "flower_id_editing_submission";
@@ -180,6 +181,43 @@ export function saveGiftRequest(request: GiftRequest) {
   enqueueCollectorRecord("gift_request", request.id, request as unknown as Record<string, unknown>);
 }
 
+export function saveGiftBouquetOptions(requestId: string, options: GiftBouquetProposal[]) {
+  const all = loadGiftBouquetOptionsMap();
+  const updatedAt = new Date().toISOString();
+  localStorage.setItem(giftBouquetsKey, JSON.stringify({ ...all, [requestId]: options }));
+  enqueueCollectorRecord("gift_bouquets", requestId, {
+    gift_request_id: requestId,
+    updated_at: updatedAt,
+    options,
+  });
+}
+
+export function loadGiftBouquetOptions(requestId: string): GiftBouquetProposal[] {
+  return loadGiftBouquetOptionsMap()[requestId] ?? [];
+}
+
+export function loadGiftBouquetOptionsMap(): Record<string, GiftBouquetProposal[]> {
+  try {
+    const raw = localStorage.getItem(giftBouquetsKey);
+    return raw ? (JSON.parse(raw) as Record<string, GiftBouquetProposal[]>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function syncGiftBouquetOptions(requestId: string) {
+  if (!collectorUrl) return loadGiftBouquetOptions(requestId);
+  const response = await collectorJsonp<{
+    ok: boolean;
+    options?: GiftBouquetProposal[];
+  }>({ action: "get_gift_bouquets", gift_request_id: requestId });
+
+  if (!response?.ok || !response.options) return loadGiftBouquetOptions(requestId);
+  const all = loadGiftBouquetOptionsMap();
+  localStorage.setItem(giftBouquetsKey, JSON.stringify({ ...all, [requestId]: response.options }));
+  return response.options;
+}
+
 export function loadGiftRequest(id: string) {
   return loadGiftRequests()[id] ?? null;
 }
@@ -308,6 +346,10 @@ function createCollectorRecordId(kind: CollectorRecordKind, id: string, payload:
     const status = String(payload.status || "created");
     const moment = String(payload.updated_at || payload.created_at || "");
     return `${kind}_${id}_${status}_${moment}`;
+  }
+  if (kind === "gift_bouquets") {
+    const moment = String(payload.updated_at || "");
+    return `${kind}_${id}_${moment}`;
   }
   return `${kind}_${id}`;
 }

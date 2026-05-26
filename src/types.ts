@@ -84,7 +84,7 @@ export interface QuizEvent {
   created_at: string;
 }
 
-export type CollectorRecordKind = "event" | "submission" | "request" | "feedback" | "order" | "gift_request";
+export type CollectorRecordKind = "event" | "submission" | "request" | "feedback" | "order" | "gift_request" | "gift_bouquets";
 
 export interface CollectorRecord {
   id: string;
@@ -178,4 +178,16 @@ export interface GiftRequest {
   source: string;
   status: "created" | "telegram_clicked" | "ordered" | "completed" | "cancelled";
   last_step: string;
+}
+
+export interface GiftBouquetProposal {
+  id: string;
+  gift_request_id: string;
+  title: string;
+  price: string;
+  description: string;
+  image: string;
+  cta: string;
+  created_at: string;
+  updated_at: string;
 }
