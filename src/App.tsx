@@ -1400,6 +1400,8 @@ function GiftRequestPage({ requestId, navigate }: { requestId: string; navigate:
 
 function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
   const params = new URLSearchParams(window.location.search);
+  const cloudinaryCloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined;
+  const cloudinaryPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
   const [requests, setRequests] = useState<Record<string, GiftRequest>>(() => loadGiftRequests());
   const [filter, setFilter] = useState<"all" | "pending" | "ready" | "selected">("pending");
   const [syncNote, setSyncNote] = useState("");
@@ -1508,6 +1510,8 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
             <span>В фильтре: {giftRequestList.length}</span>
             <span>Очередь: {queueSize}</span>
             <span>{isCollectorConfigured() ? `Sheets: ${getCollectorUrlHint()}` : "Sheets: не подключён"}</span>
+            <span>{cloudinaryCloudName && cloudinaryPreset ? `Cloudinary: ${cloudinaryCloudName}` : "Cloudinary: не подключён"}</span>
+            <span>{cloudinaryPreset ? `Preset: ${cloudinaryPreset}` : "Preset: не задан"}</span>
           </div>
           <button className="secondary-button" onClick={() => { refreshGiftRequests(); }}>Обновить заявки</button>
           {syncNote && <p className="gift-admin-sync-note">{syncNote}</p>}
