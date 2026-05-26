@@ -389,9 +389,10 @@ function appendOrder(ss, record, receivedAt) {
 function appendGiftRequest(ss, record, receivedAt) {
   const sheet = getSheet(ss, "gift_requests");
   const payload = record.payload || {};
+  const giftRequestId = payload.id || record.id || "";
   const valuesByHeader = {
     received_at: receivedAt,
-    gift_request_id: payload.id || record.id || "",
+    gift_request_id: giftRequestId,
     created_at: payload.created_at || record.created_at || "",
     updated_at: payload.updated_at || "",
     session_id: payload.session_id || record.session_id || "",
@@ -421,7 +422,21 @@ function appendGiftRequest(ss, record, receivedAt) {
     payload_json: JSON.stringify(payload),
   };
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  sheet.appendRow(headers.map((header) => valuesByHeader[header] || ""));
+  const row = headers.map((header) => valuesByHeader[header] || "");
+  const idIndex = headers.indexOf("gift_request_id");
+  if (!giftRequestId || idIndex === -1 || sheet.getLastRow() < 2) {
+    sheet.appendRow(row);
+    return;
+  }
+
+  const existingIds = sheet.getRange(2, idIndex + 1, sheet.getLastRow() - 1, 1).getValues();
+  for (let index = existingIds.length - 1; index >= 0; index -= 1) {
+    if (String(existingIds[index][0]) === String(giftRequestId)) {
+      sheet.getRange(index + 2, 1, 1, row.length).setValues([row]);
+      return;
+    }
+  }
+  sheet.appendRow(row);
 }
 
 function appendGiftBouquets(ss, record, receivedAt) {
