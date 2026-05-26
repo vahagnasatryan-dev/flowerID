@@ -1414,7 +1414,7 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
   });
   const initialRequestId = params.get("requestId") || giftRequestList[0]?.id || "";
   const [requestId, setRequestId] = useState(initialRequestId);
-  const [saved, setSaved] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
   const [options, setOptions] = useState<GiftBouquetOption[]>(() => createAdminBouquetDrafts(initialRequestId));
   const selectedRequest = requestId ? requests[requestId] : null;
   const selectedOption = selectedRequest?.selected_option
@@ -1445,36 +1445,52 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
 
   useEffect(() => {
     setOptions(createAdminBouquetDrafts(requestId));
-    setSaved(false);
+    setSaveMessage("");
   }, [requestId]);
 
   const updateOption = (index: number, patch: Partial<GiftBouquetOption>) => {
     setOptions((current) => current.map((option, optionIndex) => optionIndex === index ? { ...option, ...patch } : option));
-    setSaved(false);
+    setSaveMessage("");
   };
 
   const attachPhoto = async (index: number, file: File | null) => {
     if (!file) return;
-    const image = await fileToCompressedDataUrl(file);
-    updateOption(index, { image });
+    try {
+      const image = await fileToCompressedDataUrl(file);
+      updateOption(index, { image });
+    } catch (error) {
+      setSaveMessage(`Не удалось загрузить фото: ${String(error)}`);
+    }
   };
 
   const saveOptions = () => {
+    if (!requestId.trim()) {
+      setSaveMessage("Выберите заявку перед сохранением.");
+      return;
+    }
     const now = new Date().toISOString();
-    const readyOptions = options
-      .map((option, index) => ({
-        ...option,
-        id: option.id || `proposal_${index + 1}`,
-        gift_request_id: requestId,
-        cta: option.cta || "Заказать этот букет",
-        created_at: option.created_at || now,
-        updated_at: now,
-      }))
-      .filter((option) => option.title.trim() && option.price.trim() && option.description.trim() && option.image.trim());
-    saveGiftBouquetOptions(requestId, readyOptions);
-    track("gift_bouquets_saved", { giftRequestId: requestId, count: readyOptions.length });
-    setOptions(readyOptions.length ? readyOptions : createAdminBouquetDrafts(requestId));
-    setSaved(true);
+    const normalizedOptions = options.map((option, index) => ({
+      ...option,
+      id: option.id || `proposal_${index + 1}`,
+      gift_request_id: requestId,
+      cta: option.cta || "Заказать этот букет",
+      created_at: option.created_at || now,
+      updated_at: now,
+    }));
+    const readyOptions = normalizedOptions.filter((option) => option.title.trim() && option.price.trim() && option.description.trim() && option.image.trim());
+    if (!readyOptions.length) {
+      setSaveMessage("Заполните хотя бы один вариант: фото, название, цену и описание.");
+      return;
+    }
+    try {
+      saveGiftBouquetOptions(requestId, readyOptions);
+      track("gift_bouquets_saved", { giftRequestId: requestId, count: readyOptions.length });
+      setOptions(readyOptions.length ? readyOptions : createAdminBouquetDrafts(requestId));
+      setSaveMessage(readyOptions.length >= 3 ? "Сохранено. На клиентском экране появятся реальные варианты." : `Сохранено ${readyOptions.length} из 3 вариантов.`);
+      setQueueSize(getCollectorQueueSize());
+    } catch (error) {
+      setSaveMessage(`Не удалось сохранить варианты. Попробуйте фото меньшего размера. ${String(error)}`);
+    }
   };
 
   return (
@@ -1565,7 +1581,7 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
                   </article>
                 ))}
               </div>
-              {saved && <p className="gift-admin-saved">Сохранено. На клиентском экране появятся реальные варианты.</p>}
+              {saveMessage && <p className="gift-admin-saved">{saveMessage}</p>}
               <button className="primary-button" disabled={!requestId.trim()} onClick={saveOptions}>Сохранить варианты</button>
             </div>
           </div>
@@ -1599,7 +1615,7 @@ function fileToCompressedDataUrl(file: File) {
       const image = new Image();
       image.onerror = () => reject(new Error("Не удалось прочитать изображение"));
       image.onload = () => {
-        const maxSide = 1200;
+        const maxSide = 900;
         const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
         const width = Math.max(1, Math.round(image.width * scale));
         const height = Math.max(1, Math.round(image.height * scale));
@@ -1612,7 +1628,7 @@ function fileToCompressedDataUrl(file: File) {
           return;
         }
         context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.82));
+        resolve(canvas.toDataURL("image/jpeg", 0.72));
       };
       image.src = String(reader.result || "");
     };

@@ -366,8 +366,7 @@ function createCollectorRecordId(kind: CollectorRecordKind, id: string, payload:
     return `${kind}_${id}_${status}_${moment}`;
   }
   if (kind === "gift_bouquets") {
-    const moment = String(payload.updated_at || "");
-    return `${kind}_${id}_${moment}`;
+    return `${kind}_${id}`;
   }
   return `${kind}_${id}`;
 }
