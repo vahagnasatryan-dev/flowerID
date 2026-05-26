@@ -704,6 +704,7 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
       selected_option: "",
       selected_card_text: "",
       postcard_text: "",
+      telegram_contact: "",
       telegram_clicked: false,
       source: window.location.search || "direct",
       status: "created",
@@ -713,6 +714,9 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
     return next;
   });
   const [personalNote, setPersonalNote] = useState("");
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [telegramContact, setTelegramContact] = useState(request.telegram_contact || "");
+  const [orderAccepted, setOrderAccepted] = useState(false);
   const currentStepIndex = giftSteps.findIndex((item) => item.id === step);
   const recommendation = useMemo(() => buildGiftRecommendation(request), [request]);
   const selectedOption = recommendation.options.find((item) => item.id === request.selected_option) ?? null;
@@ -757,8 +761,16 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
   };
 
   const openGiftTelegram = () => {
+    setTelegramContact(request.telegram_contact || "");
+    setShowContactModal(true);
+  };
+
+  const submitGiftContact = () => {
+    const contact = telegramContact.trim();
+    if (!contact) return;
     const finalRequest = {
       ...request,
+      telegram_contact: contact,
       telegram_clicked: true,
       status: "telegram_clicked" as const,
       updated_at: new Date().toISOString(),
@@ -766,11 +778,10 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
     };
     setRequest(finalRequest);
     saveGiftRequest(finalRequest);
-    track("telegram_clicked", { giftRequestId: finalRequest.id, selectedOption: finalRequest.selected_option, budget: finalRequest.budget });
+    track("telegram_clicked", { giftRequestId: finalRequest.id, selectedOption: finalRequest.selected_option, budget: finalRequest.budget, contactProvided: true });
     track("flow_completed", { giftRequestId: finalRequest.id });
-    const message = buildGiftTelegramMessage(finalRequest, selectedOption, recommendation);
-    navigator.clipboard?.writeText(message).catch(() => undefined);
-    window.open(`https://t.me/flowerid_order?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+    setShowContactModal(false);
+    setOrderAccepted(true);
   };
 
   const goBack = () => {
@@ -804,12 +815,12 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
             </div>
             <div className="gift-intro-preview gift-intro-guarantees">
               <article>
-                <strong>Свежесть цветов</strong>
-                <p>Букет собирается перед доставкой из стойких сезонных цветов.</p>
+                <strong>Свежесть</strong>
+                <p>Собираем букет перед доставкой и подбираем стойкие сезонные цветы.</p>
               </article>
               <article>
                 <strong>Удобная доставка</strong>
-                <p>Адрес, время и детали спокойно уточним перед оформлением.</p>
+                <p>В Telegram уточним адрес, время и детали, чтобы всё прошло спокойно.</p>
               </article>
               <article>
                 <strong>Как на фото</strong>
@@ -996,6 +1007,7 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
               recommendation={recommendation}
               selectedOption={selectedOption}
               onTelegram={openGiftTelegram}
+              orderAccepted={orderAccepted}
             />
           )}
 
@@ -1005,6 +1017,14 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
           {step === "final" && <button className="text-button gift-back-inline" onClick={() => setStep("postcard")}>Назад к открытке</button>}
         </section>
       </section>
+      {showContactModal && (
+        <GiftContactModal
+          value={telegramContact}
+          onChange={setTelegramContact}
+          onClose={() => setShowContactModal(false)}
+          onSubmit={submitGiftContact}
+        />
+      )}
     </main>
   );
 }
@@ -1191,12 +1211,26 @@ function GiftPostcardScreen({ selectedText, note, onNote, onChoose, onCustom }: 
   );
 }
 
-function GiftFinalScreen({ request, recommendation, selectedOption, onTelegram }: { request: GiftRequest; recommendation: GiftRecommendation; selectedOption: GiftBouquetOption | null; onTelegram: () => void }) {
+function GiftFinalScreen({
+  request,
+  recommendation,
+  selectedOption,
+  onTelegram,
+  orderAccepted,
+}: {
+  request: GiftRequest;
+  recommendation: GiftRecommendation;
+  selectedOption: GiftBouquetOption | null;
+  onTelegram: () => void;
+  orderAccepted: boolean;
+}) {
+  const image = selectedOption?.image || recommendation.image;
   return (
     <section className="gift-final">
       <p className="eyebrow">Заказ готов</p>
       <h1>Всё готово</h1>
       <article className="gift-final-card">
+        <div className="gift-final-image" style={{ backgroundImage: `url(${image})` }} aria-hidden="true" />
         <h2>{selectedOption?.title || "Персональный вариант Flower ID"}</h2>
         <p>{selectedOption?.price || giftLabel(budgetOptions, request.budget)}</p>
         <dl>
@@ -1208,8 +1242,37 @@ function GiftFinalScreen({ request, recommendation, selectedOption, onTelegram }
         </dl>
       </article>
       <p className="lead">Дальше мы уточним адрес и время доставки в Telegram. Перед отправкой вы получите фото готового букета на согласование.</p>
-      <button className="primary-button" onClick={onTelegram}>Продолжить в Telegram</button>
+      {orderAccepted && (
+        <div className="gift-accepted-note">
+          <strong>Заказ принят</strong>
+          <span>Мы свяжемся с вами в Telegram, уточним детали и подготовим 3 подходящих варианта.</span>
+        </div>
+      )}
+      <button className="primary-button" onClick={onTelegram}>{orderAccepted ? "Изменить контакт" : "Оставить контакт в Telegram"}</button>
     </section>
+  );
+}
+
+function GiftContactModal({ value, onChange, onClose, onSubmit }: { value: string; onChange: (value: string) => void; onClose: () => void; onSubmit: () => void }) {
+  return (
+    <div className="gift-contact-backdrop" role="presentation" onMouseDown={onClose}>
+      <section className="gift-contact-modal" role="dialog" aria-modal="true" aria-labelledby="gift-contact-title" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="gift-contact-close" type="button" onClick={onClose}>Закрыть</button>
+        <p className="eyebrow">Контакт для заказа</p>
+        <h2 id="gift-contact-title">Куда написать в Telegram?</h2>
+        <p>Оставьте @username или номер телефона. Мы напишем вам, уточним детали доставки и подготовим варианты букета.</p>
+        <label>
+          Telegram или телефон
+          <input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="@username или +7..."
+            autoFocus
+          />
+        </label>
+        <button className="primary-button" type="button" onClick={onSubmit} disabled={!value.trim()}>Отправить заявку</button>
+      </section>
+    </div>
   );
 }
 

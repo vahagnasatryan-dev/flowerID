@@ -3148,7 +3148,7 @@ body {
 }
 
 .gift-screen {
-  gap: 22px;
+  gap: 26px;
   min-height: calc(100vh - 64px);
 }
 
@@ -3229,7 +3229,8 @@ body {
 
 .gift-step-heading {
   display: grid;
-  gap: 12px;
+  gap: 14px;
+  margin-bottom: 8px;
 }
 
 .gift-step-heading h1,
@@ -3252,7 +3253,8 @@ body {
 
 .gift-choice-grid {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 4px;
 }
 
 .gift-choice-card {
@@ -3397,7 +3399,8 @@ body {
 }
 
 .gift-style-image,
-.gift-bouquet-image {
+.gift-bouquet-image,
+.gift-final-image {
   aspect-ratio: 1.2 / 1;
   border-radius: 24px;
   background-position: center;
@@ -3503,6 +3506,100 @@ body {
   margin: 0;
 }
 
+.gift-accepted-note {
+  display: grid;
+  gap: 6px;
+  border-radius: 26px;
+  background: #edf3ea;
+  color: var(--muted);
+  line-height: 1.4;
+  padding: 18px;
+}
+
+.gift-accepted-note strong {
+  color: var(--ink);
+  font-size: 1.15rem;
+  font-weight: 950;
+}
+
+.gift-contact-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  background: rgba(35, 24, 20, 0.42);
+  padding: 18px;
+}
+
+.gift-contact-modal {
+  display: grid;
+  gap: 16px;
+  width: min(100%, 520px);
+  border-radius: 34px;
+  background: #fffaf4;
+  box-shadow: 0 28px 80px rgba(35, 24, 20, 0.28);
+  padding: 24px;
+}
+
+.gift-contact-modal h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.9rem, 8vw, 3rem);
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+.gift-contact-modal p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.42;
+}
+
+.gift-contact-modal label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gift-contact-modal input {
+  width: 100%;
+  border: 1px solid rgba(35, 24, 20, 0.1);
+  border-radius: 22px;
+  background: #f7f1eb;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  outline: none;
+  padding: 17px 18px;
+}
+
+.gift-contact-modal input:focus {
+  border-color: rgba(107, 13, 38, 0.42);
+  box-shadow: 0 0 0 4px rgba(107, 13, 38, 0.08);
+}
+
+.gift-contact-close {
+  justify-self: end;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 @media (min-width: 760px) {
   .gift-choice-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3510,6 +3607,10 @@ body {
 
   .gift-intro-screen {
     grid-template-columns: minmax(0, 1fr) minmax(280px, 0.76fr);
+    align-items: center;
+  }
+
+  .gift-contact-backdrop {
     align-items: center;
   }
 

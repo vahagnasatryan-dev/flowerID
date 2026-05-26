@@ -173,6 +173,7 @@ export interface GiftRequest {
   selected_option: string;
   selected_card_text: string;
   postcard_text: string;
+  telegram_contact?: string;
   telegram_clicked: boolean;
   source: string;
   status: "created" | "telegram_clicked" | "ordered" | "completed" | "cancelled";
