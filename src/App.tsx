@@ -49,7 +49,7 @@ type OrderDraft = {
   comment: string;
 };
 
-type GiftStep = "recipient" | "occasion" | "effect" | "taste" | "avoid" | "budget" | "result" | "postcard" | "final";
+type GiftStep = "recipient" | "occasion" | "effect" | "taste" | "budget" | "result" | "postcard" | "final";
 
 type GiftOption = {
   id: string;
@@ -156,7 +156,7 @@ export default function App() {
     return <LandingPage navigate={navigate} startQuiz={() => setQuizActive(true)} key={routeKey} />;
   }
   if (path === "/request") return <RequestPage navigate={navigate} />;
-  if (path === "/gift") return <GiftConciergePage navigate={navigate} startQuiz={() => setQuizActive(true)} />;
+  if (path === "/gift") return <GiftConciergePage navigate={navigate} />;
   if (path.startsWith("/request-status/")) return <RequestStatusPage requestId={decodeURIComponent(path.split("/request-status/")[1] || "")} navigate={navigate} />;
   if (path.startsWith("/order-next/")) return <OrderNextStepsPage orderId={decodeURIComponent(path.split("/order-next/")[1] || "")} navigate={navigate} />;
   if (path === "/my-flower-id") return <MyFlowerIdPage navigate={navigate} startQuiz={() => setQuizActive(true)} />;
@@ -580,7 +580,6 @@ const giftSteps: Array<{ id: GiftStep; label: string }> = [
   { id: "occasion", label: "Повод" },
   { id: "effect", label: "Эффект" },
   { id: "taste", label: "Вкус" },
-  { id: "avoid", label: "Стоп-лист" },
   { id: "budget", label: "Бюджет" },
   { id: "result", label: "Варианты" },
   { id: "postcard", label: "Открытка" },
@@ -595,29 +594,6 @@ const recipientOptions: GiftOption[] = [
   { id: "client", label: "Клиенту / партнёру" },
   { id: "teacher_doctor", label: "Учителю / врачу" },
   { id: "other", label: "Другому человеку" },
-];
-
-const occasionOptions: GiftOption[] = [
-  { id: "just_because", label: "Просто порадовать" },
-  { id: "birthday", label: "Поздравить с днём рождения" },
-  { id: "impress", label: "Произвести впечатление" },
-  { id: "thanks", label: "Поблагодарить" },
-  { id: "apology", label: "Извиниться" },
-  { id: "support", label: "Поддержать" },
-  { id: "milestone", label: "Поздравить с важным событием" },
-  { id: "romantic", label: "Сделать романтичный жест" },
-  { id: "business", label: "Деловой подарок" },
-];
-
-const effectOptions: GiftOption[] = [
-  { id: "touching", label: "Нежно и трогательно" },
-  { id: "quiet_expensive", label: "Дорого и сдержанно" },
-  { id: "wow", label: "Вау и эффектно" },
-  { id: "romantic", label: "Романтично" },
-  { id: "family_warm", label: "Тепло и по-семейному" },
-  { id: "smart", label: "Умно и небанально" },
-  { id: "status", label: "Статусно, но без пафоса" },
-  { id: "smile", label: "Просто вызвать улыбку" },
 ];
 
 const tasteOptions: GiftOption[] = [
@@ -644,7 +620,6 @@ const budgetOptions: GiftOption[] = [
   { id: "5000_8000", label: "5 000–8 000 ₽" },
   { id: "8000_15000", label: "8 000–15 000 ₽" },
   { id: "15000_plus", label: "15 000+ ₽" },
-  { id: "unknown", label: "Не знаю, помогите выбрать" },
 ];
 
 const postcardOptions = [
@@ -698,7 +673,7 @@ const giftStyleGuide: Record<GiftStyleId, Omit<GiftRecommendation, "styleId" | "
   },
 };
 
-function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) => void; startQuiz: () => void }) {
+function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
   const [showIntro, setShowIntro] = useState(true);
   const [step, setStep] = useState<GiftStep>("recipient");
   const [request, setRequest] = useState<GiftRequest>(() => {
@@ -712,9 +687,17 @@ function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) =>
       updated_at: now,
       session_id: "",
       recipient_type: "",
+      recipient_custom: "",
       occasion: "",
+      occasion_custom: "",
       desired_effect: "",
+      desired_effect_custom: "",
       taste_knowledge: "",
+      flower_id_link: "",
+      taste_note: "",
+      taste_style_hint: "",
+      taste_palette_hint: "",
+      taste_format_hint: "",
       avoid_items: [],
       budget: "",
       recommended_style: "",
@@ -733,6 +716,7 @@ function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) =>
   const currentStepIndex = giftSteps.findIndex((item) => item.id === step);
   const recommendation = useMemo(() => buildGiftRecommendation(request), [request]);
   const selectedOption = recommendation.options.find((item) => item.id === request.selected_option) ?? null;
+  const savedFlowerIds = useMemo(() => Object.values(loadSubmissions()).slice(0, 3), []);
 
   useEffect(() => {
     track("page_view", { page: "gift_concierge", giftRequestId: request.id, step });
@@ -758,15 +742,6 @@ function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) =>
 
   const chooseSingle = (field: keyof Pick<GiftRequest, "recipient_type" | "occasion" | "desired_effect" | "taste_knowledge" | "budget">, value: string, nextStep: GiftStep, eventName: string) => {
     updateGiftRequest({ [field]: value } as Partial<GiftRequest>, nextStep, eventName);
-  };
-
-  const toggleAvoid = (id: string) => {
-    const next = id === "unknown"
-      ? ["unknown"]
-      : request.avoid_items.includes(id)
-        ? request.avoid_items.filter((item) => item !== id)
-        : [...request.avoid_items.filter((item) => item !== "unknown"), id];
-    updateGiftRequest({ avoid_items: next, last_step: "avoid" }, undefined, "avoid_items_selected");
   };
 
   const chooseBouquet = (option: GiftBouquetOption) => {
@@ -824,34 +799,21 @@ function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) =>
                   track("start_gift_flow_clicked", { source: "gift_intro" });
                   setShowIntro(false);
                 }}>Подобрать букет</button>
-                <button className="secondary-button" onClick={() => {
-                  sessionStorage.setItem(activeQuizKey, "1");
-                  startQuiz();
-                  navigate("/");
-                }}>Создать мой Flower ID</button>
-                <p className="cta-note">3 минуты · 3 персональных варианта · заказ через Telegram</p>
+                <p className="cta-note">3 минуты · 3 персональных варианта · согласуем детали перед заказом</p>
               </div>
             </div>
-            <div className="gift-intro-preview">
-              <article className="flower-id-preview-card">
-                <div className="preview-card-top">
-                  <span>Пример подбора</span>
-                  <strong>3 варианта</strong>
-                </div>
-                <div className="preview-photo" aria-hidden="true" />
-                <div className="preview-card-body">
-                  <p className="preview-name">Девушке · просто порадовать</p>
-                  <h2>Нежная садовая романтика</h2>
-                  <div className="preview-tags">
-                    <span>точно понравится</span>
-                    <span>вау</span>
-                    <span>нежный жест</span>
-                  </div>
-                  <div className="preview-section">
-                    <strong>Что учтём</strong>
-                    <p>повод · эффект · бюджет · стоп-факторы</p>
-                  </div>
-                </div>
+            <div className="gift-intro-preview gift-intro-guarantees">
+              <article>
+                <strong>Свежесть цветов</strong>
+                <p>Букет собирается перед доставкой из стойких сезонных цветов.</p>
+              </article>
+              <article>
+                <strong>Удобная доставка</strong>
+                <p>Адрес, время и детали спокойно уточним перед оформлением.</p>
+              </article>
+              <article>
+                <strong>Как на фото</strong>
+                <p>Перед отправкой согласуем внешний вид, чтобы ожидания совпали с результатом.</p>
               </article>
             </div>
           </section>
@@ -866,7 +828,7 @@ function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) =>
         <Header step={0} onBack={goBack} note="3 минуты · без каталога" />
         <section className="screen gift-screen">
           <div className="gift-progress">
-            <span>{currentStepIndex < 6 ? `Шаг ${currentStepIndex + 1} из 6` : giftSteps[currentStepIndex]?.label}</span>
+            <span>{currentStepIndex < 5 ? `Шаг ${currentStepIndex + 1} из 5` : giftSteps[currentStepIndex]?.label}</span>
             <i style={{ width: `${Math.min(((currentStepIndex + 1) / giftSteps.length) * 100, 100)}%` }} />
           </div>
 
@@ -876,26 +838,78 @@ function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) =>
               title="Для кого выбираем букет?"
               options={recipientOptions}
               selected={request.recipient_type}
-              onSelect={(id) => chooseSingle("recipient_type", id, "occasion", "recipient_selected")}
+              onSelect={(id) => {
+                if (id === "other") {
+                  updateGiftRequest({ recipient_type: id }, undefined, "recipient_selected");
+                  return;
+                }
+                chooseSingle("recipient_type", id, "occasion", "recipient_selected");
+              }}
+            />
+          )}
+          {step === "recipient" && request.recipient_type === "other" && (
+            <GiftManualInput
+              label="Кому именно?"
+              value={request.recipient_custom || ""}
+              placeholder="Например: сестре, бабушке, соседке, тренеру"
+              onChange={(value) => updateGiftRequest({ recipient_custom: value }, undefined)}
+              onNext={() => updateGiftRequest({ recipient_custom: request.recipient_custom || "" }, "occasion", "recipient_selected")}
+              nextDisabled={!request.recipient_custom?.trim()}
             />
           )}
 
           {step === "occasion" && (
-            <GiftChoiceStep
-              title="Что хотите сказать этим букетом?"
-              options={occasionOptions}
-              selected={request.occasion}
-              onSelect={(id) => chooseSingle("occasion", id, "effect", "occasion_selected")}
-            />
+            <>
+              <GiftChoiceStep
+                title="Что хотите сказать этим букетом?"
+                options={getOccasionOptions(request.recipient_type)}
+                selected={request.occasion}
+                onSelect={(id) => {
+                  if (id === "other") {
+                    updateGiftRequest({ occasion: id }, undefined, "occasion_selected");
+                    return;
+                  }
+                  chooseSingle("occasion", id, "effect", "occasion_selected");
+                }}
+              />
+              {request.occasion === "other" && (
+                <GiftManualInput
+                  label="Напишите повод своими словами"
+                  value={request.occasion_custom || ""}
+                  placeholder="Например: первая встреча после долгой паузы"
+                  onChange={(value) => updateGiftRequest({ occasion_custom: value }, undefined)}
+                  onNext={() => updateGiftRequest({ occasion_custom: request.occasion_custom || "" }, "effect", "occasion_selected")}
+                  nextDisabled={!request.occasion_custom?.trim()}
+                />
+              )}
+            </>
           )}
 
           {step === "effect" && (
-            <GiftChoiceStep
-              title="Какое ощущение должен создать букет?"
-              options={effectOptions}
-              selected={request.desired_effect}
-              onSelect={(id) => chooseSingle("desired_effect", id, "taste", "effect_selected")}
-            />
+            <>
+              <GiftChoiceStep
+                title="Какое ощущение должен создать букет?"
+                options={getEffectOptions(request)}
+                selected={request.desired_effect}
+                onSelect={(id) => {
+                  if (id === "other") {
+                    updateGiftRequest({ desired_effect: id }, undefined, "effect_selected");
+                    return;
+                  }
+                  chooseSingle("desired_effect", id, "taste", "effect_selected");
+                }}
+              />
+              {request.desired_effect === "other" && (
+                <GiftManualInput
+                  label="Опишите эффект своими словами"
+                  value={request.desired_effect_custom || ""}
+                  placeholder="Например: спокойно, заботливо, но не романтично"
+                  onChange={(value) => updateGiftRequest({ desired_effect_custom: value }, undefined)}
+                  onNext={() => updateGiftRequest({ desired_effect_custom: request.desired_effect_custom || "" }, "taste", "effect_selected")}
+                  nextDisabled={!request.desired_effect_custom?.trim()}
+                />
+              )}
+            </>
           )}
 
           {step === "taste" && (
@@ -905,40 +919,47 @@ function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) =>
                 options={tasteOptions}
                 selected={request.taste_knowledge}
                 onSelect={(id) => {
+                  if (id === "request_flower_id") {
+                    track("request_flower_id_clicked", { source: "gift_flow", giftRequestId: request.id });
+                    navigate("/request");
+                    return;
+                  }
                   if (id === "has_flower_id") {
                     updateGiftRequest({ taste_knowledge: id }, undefined, "taste_knowledge_selected");
                     return;
                   }
-                  chooseSingle("taste_knowledge", id, "avoid", "taste_knowledge_selected");
+                  if (id === "roughly_know" || id === "unknown") {
+                    updateGiftRequest({ taste_knowledge: id }, undefined, "taste_knowledge_selected");
+                    return;
+                  }
+                  chooseSingle("taste_knowledge", id, "budget", "taste_knowledge_selected");
                 }}
               />
               {request.taste_knowledge === "has_flower_id" && (
-                <>
-                  <p className="gift-inline-note">Скоро здесь можно будет вставить Flower ID. Пока мы подберём букет по вашим ответам.</p>
-                  <GiftBottomNav onBack={goBack} onNext={() => updateGiftRequest({ taste_knowledge: request.taste_knowledge }, "avoid", "taste_knowledge_selected")} />
-                </>
+                <GiftFlowerIdPicker
+                  value={request.flower_id_link || ""}
+                  saved={savedFlowerIds}
+                  onChange={(value) => updateGiftRequest({ flower_id_link: value }, undefined)}
+                  onNext={() => updateGiftRequest({ flower_id_link: request.flower_id_link || "" }, "budget", "taste_knowledge_selected")}
+                />
               )}
-            </>
-          )}
-
-          {step === "avoid" && (
-            <>
-              <div className="gift-step-heading">
-                <h1>Что точно не стоит использовать в букете?</h1>
-                <p>Можно выбрать несколько вариантов.</p>
-              </div>
-              <div className="gift-choice-grid">
-                {avoidGiftOptions.map((option) => (
-                  <button
-                    className={`gift-choice-card ${request.avoid_items.includes(option.id) ? "selected" : ""}`}
-                    key={option.id}
-                    onClick={() => toggleAvoid(option.id)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <GiftBottomNav onBack={goBack} onNext={() => updateGiftRequest({ avoid_items: request.avoid_items }, "budget", "avoid_items_selected")} nextDisabled={!request.avoid_items.length} />
+              {request.taste_knowledge === "roughly_know" && (
+                <GiftManualInput
+                  label="Что известно о вкусе?"
+                  value={request.taste_note || ""}
+                  placeholder="Например: любит нежные оттенки, не любит красные розы, лучше без сильного запаха"
+                  onChange={(value) => updateGiftRequest({ taste_note: value }, undefined)}
+                  onNext={() => updateGiftRequest({ taste_note: request.taste_note || "" }, "budget", "taste_knowledge_selected")}
+                  nextDisabled={!request.taste_note?.trim()}
+                />
+              )}
+              {request.taste_knowledge === "unknown" && (
+                <GiftTasteGuess
+                  request={request}
+                  onChange={updateGiftRequest}
+                  onNext={() => updateGiftRequest({}, "budget", "taste_knowledge_selected")}
+                />
+              )}
             </>
           )}
 
@@ -956,7 +977,6 @@ function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) =>
               request={request}
               recommendation={recommendation}
               onSelect={chooseBouquet}
-              onCommand={(command) => updateGiftRequest({ selected_card_text: command }, "final", "bouquet_option_selected")}
             />
           )}
 
@@ -979,15 +999,10 @@ function GiftConciergePage({ navigate, startQuiz }: { navigate: (url: string) =>
             />
           )}
 
-          {step !== "recipient" && step !== "avoid" && step !== "final" && (
+          {step !== "recipient" && step !== "final" && (
             <button className="text-button gift-back-inline" onClick={goBack}>Назад</button>
           )}
           {step === "final" && <button className="text-button gift-back-inline" onClick={() => setStep("postcard")}>Назад к открытке</button>}
-          <button className="gift-create-own-link" onClick={() => {
-            sessionStorage.setItem(activeQuizKey, "1");
-            startQuiz();
-            navigate("/");
-          }}>Создать мой Flower ID</button>
         </section>
       </section>
     </main>
@@ -1013,6 +1028,104 @@ function GiftChoiceStep({ eyebrow, title, options, selected, onSelect }: { eyebr
   );
 }
 
+function GiftManualInput({
+  label,
+  value,
+  placeholder,
+  onChange,
+  onNext,
+  nextDisabled,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  onNext: () => void;
+  nextDisabled?: boolean;
+}) {
+  return (
+    <div className="gift-extra-panel">
+      <label>
+        {label}
+        <textarea className="text-area" value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+      </label>
+      <button className="primary-button" disabled={nextDisabled} onClick={onNext}>Дальше</button>
+    </div>
+  );
+}
+
+function GiftFlowerIdPicker({
+  value,
+  saved,
+  onChange,
+  onNext,
+}: {
+  value: string;
+  saved: FlowerSubmission[];
+  onChange: (value: string) => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="gift-extra-panel">
+      <label>
+        Ссылка на Flower ID
+        <input value={value} placeholder="Вставьте ссылку на Flower ID" onChange={(event) => onChange(event.target.value)} />
+      </label>
+      {saved.length > 0 && (
+        <div className="gift-saved-picker">
+          <span>Или выбрать из сохранённых</span>
+          {saved.map((submission) => (
+            <button className="secondary-button" key={submission.id} onClick={() => onChange(`${window.location.origin}/result/${submission.id}`)}>
+              {submission.answers.user.name || formatFlowerId(submission.id)}
+            </button>
+          ))}
+        </div>
+      )}
+      <button className="primary-button" disabled={!value.trim()} onClick={onNext}>Дальше</button>
+    </div>
+  );
+}
+
+function GiftTasteGuess({
+  request,
+  onChange,
+  onNext,
+}: {
+  request: GiftRequest;
+  onChange: (patch: Partial<GiftRequest>, nextStep?: GiftStep, eventName?: string) => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="gift-extra-panel">
+      <label>
+        Получатель скорее любит
+        <input
+          value={request.taste_style_hint || ""}
+          placeholder="Например: классику, минимализм, что-то необычное"
+          onChange={(event) => onChange({ taste_style_hint: event.target.value }, undefined)}
+        />
+      </label>
+      <label>
+        Цвета лучше выбрать
+        <input
+          value={request.taste_palette_hint || ""}
+          placeholder="Например: нежные, светлые, яркие, спокойные"
+          onChange={(event) => onChange({ taste_palette_hint: event.target.value }, undefined)}
+        />
+      </label>
+      <label>
+        Букет должен быть
+        <input
+          value={request.taste_format_hint || ""}
+          placeholder="Например: компактный, средний, заметный, без лишней упаковки"
+          onChange={(event) => onChange({ taste_format_hint: event.target.value }, undefined)}
+        />
+      </label>
+      <button className="primary-button" onClick={onNext}>Дальше</button>
+    </div>
+  );
+}
+
 function GiftBottomNav({ onBack, onNext, nextDisabled }: { onBack: () => void; onNext: () => void; nextDisabled?: boolean }) {
   return (
     <div className="gift-bottom-nav">
@@ -1022,7 +1135,7 @@ function GiftBottomNav({ onBack, onNext, nextDisabled }: { onBack: () => void; o
   );
 }
 
-function GiftRecommendationScreen({ request, recommendation, onSelect, onCommand }: { request: GiftRequest; recommendation: GiftRecommendation; onSelect: (option: GiftBouquetOption) => void; onCommand: (command: string) => void }) {
+function GiftRecommendationScreen({ request, recommendation, onSelect }: { request: GiftRequest; recommendation: GiftRecommendation; onSelect: (option: GiftBouquetOption) => void }) {
   useEffect(() => {
     track("recommendation_viewed", { giftRequestId: request.id, recommendedStyle: recommendation.styleName, budget: request.budget });
   }, [recommendation.styleName, request.budget, request.id]);
@@ -1030,25 +1143,16 @@ function GiftRecommendationScreen({ request, recommendation, onSelect, onCommand
   return (
     <section className="gift-result">
       <p className="eyebrow">Персональная рекомендация</p>
-      <h1>Ваш идеальный цветочный жест</h1>
+      <h1>3 варианта букета</h1>
       <div className="gift-summary-row">
-        <span>Кому: {giftLabel(recipientOptions, request.recipient_type)}</span>
-        <span>Повод: {giftLabel(occasionOptions, request.occasion)}</span>
-        <span>Эффект: {giftLabel(effectOptions, request.desired_effect)}</span>
+        <span>Кому: {giftRecipientLabel(request)}</span>
+        <span>Повод: {giftOccasionLabel(request)}</span>
+        <span>Эффект: {giftEffectLabel(request)}</span>
         <span>Бюджет: {giftLabel(budgetOptions, request.budget)}</span>
       </div>
-      <article className="gift-style-card">
-        <div className="gift-style-image" style={{ backgroundImage: `url(${recommendation.image})` }} />
-        <div>
-          <span>Лучший стиль</span>
-          <h2>{recommendation.styleName}</h2>
-          <p>{recommendation.description}</p>
-        </div>
-      </article>
-      <section className="profile-section profile-section-warning">
-        <span>Лучше не использовать</span>
-        <ChipList items={request.avoid_items.includes("unknown") ? recommendation.avoid : request.avoid_items.map((id) => giftLabel(avoidGiftOptions, id))} fallback="Жёсткого стоп-листа нет." />
-      </section>
+      <p className="gift-result-brief">
+        Лучший стиль: <strong>{recommendation.styleName}</strong>. {recommendation.description}
+      </p>
       <div className="gift-bouquet-options">
         {recommendation.options.map((option) => (
           <article className="gift-bouquet-card" key={option.id}>
@@ -1058,11 +1162,6 @@ function GiftRecommendationScreen({ request, recommendation, onSelect, onCommand
             <p>{option.description}</p>
             <button className="primary-button" onClick={() => onSelect(option)}>{option.cta}</button>
           </article>
-        ))}
-      </div>
-      <div className="gift-command-grid">
-        {["Сделать нежнее", "Сделать ярче", "Сделать дороже", "Сделать скромнее", "Убрать розы", "Убрать лилии", "Добавить вау", "Показать другие варианты"].map((command) => (
-          <button className="text-button" key={command} onClick={() => onCommand(command)}>{command}</button>
         ))}
       </div>
     </section>
@@ -1101,11 +1200,10 @@ function GiftFinalScreen({ request, recommendation, selectedOption, onTelegram }
         <h2>{selectedOption?.title || "Персональный вариант Flower ID"}</h2>
         <p>{selectedOption?.price || giftLabel(budgetOptions, request.budget)}</p>
         <dl>
-          <div><dt>Кому</dt><dd>{giftLabel(recipientOptions, request.recipient_type)}</dd></div>
-          <div><dt>Повод</dt><dd>{giftLabel(occasionOptions, request.occasion)}</dd></div>
-          <div><dt>Эффект</dt><dd>{giftLabel(effectOptions, request.desired_effect)}</dd></div>
+          <div><dt>Кому</dt><dd>{giftRecipientLabel(request)}</dd></div>
+          <div><dt>Повод</dt><dd>{giftOccasionLabel(request)}</dd></div>
+          <div><dt>Эффект</dt><dd>{giftEffectLabel(request)}</dd></div>
           <div><dt>Стиль</dt><dd>{recommendation.styleName}</dd></div>
-          <div><dt>Стоп-факторы</dt><dd>{request.avoid_items.map((id) => giftLabel(avoidGiftOptions, id)).join(", ") || "не указаны"}</dd></div>
           <div><dt>Открытка</dt><dd>{request.postcard_text || "без текста"}</dd></div>
         </dl>
       </article>
@@ -1128,6 +1226,10 @@ function buildGiftRecommendation(request: GiftRequest): GiftRecommendation {
 function chooseGiftStyle(request: GiftRequest): GiftStyleId {
   const businessRecipient = ["client", "colleague", "teacher_doctor"].includes(request.recipient_type);
   const businessOccasion = ["business", "thanks"].includes(request.occasion);
+  const unknownHints = `${request.taste_style_hint || ""} ${request.taste_palette_hint || ""} ${request.taste_format_hint || ""}`.toLowerCase();
+  if (unknownHints.includes("ярк")) return "bright_joy";
+  if (unknownHints.includes("класс")) return "warm_classic";
+  if (unknownHints.includes("миним") || unknownHints.includes("спокой")) return "quiet_luxury";
   if (businessRecipient && businessOccasion && ["quiet_expensive", "status", "smart"].includes(request.desired_effect)) {
     return request.recipient_type === "client" ? "quiet_luxury" : "business_elegance";
   }
@@ -1181,19 +1283,117 @@ function buildGiftTelegramMessage(request: GiftRequest, selectedOption: GiftBouq
   return [
     "Здравствуйте! Хочу заказать букет через Flower ID.",
     "",
-    `Кому: ${giftLabel(recipientOptions, request.recipient_type)}`,
-    `Повод: ${giftLabel(occasionOptions, request.occasion)}`,
-    `Эффект: ${giftLabel(effectOptions, request.desired_effect)}`,
+    `Кому: ${giftRecipientLabel(request)}`,
+    `Повод: ${giftOccasionLabel(request)}`,
+    `Эффект: ${giftEffectLabel(request)}`,
     `Бюджет: ${giftLabel(budgetOptions, request.budget)}`,
     `Рекомендованный стиль: ${recommendation.styleName}`,
     `Выбранный вариант: ${selectedOption?.title || request.selected_card_text || "подберите лучший вариант"}`,
-    `Стоп-факторы: ${request.avoid_items.map((id) => giftLabel(avoidGiftOptions, id)).join(", ") || "не указаны"}`,
+    request.flower_id_link ? `Flower ID: ${request.flower_id_link}` : "",
+    request.taste_note ? `Что известно о вкусе: ${request.taste_note}` : "",
+    request.taste_style_hint || request.taste_palette_hint || request.taste_format_hint
+      ? `Уточнения по вкусу: ${[request.taste_style_hint, request.taste_palette_hint, request.taste_format_hint].filter(Boolean).join("; ")}`
+      : "",
     `Открытка: ${request.postcard_text || "без текста"}`,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 function giftLabel(options: GiftOption[], id: string) {
   return options.find((option) => option.id === id)?.label || id || "не указано";
+}
+
+function giftRecipientLabel(request: GiftRequest) {
+  if (request.recipient_type === "other") return request.recipient_custom || "другому человеку";
+  return giftLabel(recipientOptions, request.recipient_type);
+}
+
+function giftOccasionLabel(request: GiftRequest) {
+  if (request.occasion === "other") return request.occasion_custom || "другой повод";
+  return giftLabel(getOccasionOptions(request.recipient_type), request.occasion);
+}
+
+function giftEffectLabel(request: GiftRequest) {
+  if (request.desired_effect === "other") return request.desired_effect_custom || "особое ощущение";
+  return giftLabel(getEffectOptions(request), request.desired_effect);
+}
+
+function getOccasionOptions(recipientType: string): GiftOption[] {
+  const common = [
+    { id: "just_because", label: "Просто порадовать" },
+    { id: "birthday", label: "Поздравить с днём рождения" },
+    { id: "thanks", label: "Поблагодарить" },
+    { id: "support", label: "Поддержать" },
+    { id: "milestone", label: "Поздравить с важным событием" },
+  ];
+  const byRecipient: Record<string, GiftOption[]> = {
+    partner: [
+      { id: "just_because", label: "Просто порадовать" },
+      { id: "birthday", label: "Поздравить с днём рождения" },
+      { id: "romantic", label: "Сделать романтичный жест" },
+      { id: "apology", label: "Извиниться" },
+      { id: "impress", label: "Произвести впечатление" },
+      { id: "milestone", label: "Поздравить с важным событием" },
+    ],
+    mother: [
+      { id: "just_because", label: "Просто порадовать" },
+      { id: "birthday", label: "Поздравить с днём рождения" },
+      { id: "thanks", label: "Поблагодарить" },
+      { id: "support", label: "Поддержать" },
+      { id: "milestone", label: "Поздравить с важным событием" },
+    ],
+    colleague: [
+      { id: "birthday", label: "Поздравить с днём рождения" },
+      { id: "thanks", label: "Поблагодарить" },
+      { id: "milestone", label: "Поздравить с важным событием" },
+      { id: "business", label: "Деловой подарок" },
+    ],
+    client: [
+      { id: "thanks", label: "Поблагодарить" },
+      { id: "milestone", label: "Поздравить с важным событием" },
+      { id: "business", label: "Деловой подарок" },
+      { id: "impress", label: "Произвести впечатление" },
+    ],
+    teacher_doctor: [
+      { id: "thanks", label: "Поблагодарить" },
+      { id: "birthday", label: "Поздравить с днём рождения" },
+      { id: "milestone", label: "Поздравить с важным событием" },
+    ],
+  };
+  return [...(byRecipient[recipientType] || common), { id: "other", label: "Другое" }];
+}
+
+function getEffectOptions(request: GiftRequest): GiftOption[] {
+  const business = ["client", "colleague", "teacher_doctor"].includes(request.recipient_type) || request.occasion === "business";
+  const family = request.recipient_type === "mother";
+  const romantic = request.recipient_type === "partner" || request.occasion === "romantic";
+  const base = business
+    ? [
+      { id: "quiet_expensive", label: "Дорого и сдержанно" },
+      { id: "status", label: "Статусно, но без пафоса" },
+      { id: "smart", label: "Умно и небанально" },
+      { id: "smile", label: "Просто вызвать улыбку" },
+    ]
+    : family
+      ? [
+        { id: "family_warm", label: "Тепло и по-семейному" },
+        { id: "touching", label: "Нежно и трогательно" },
+        { id: "smile", label: "Просто вызвать улыбку" },
+        { id: "quiet_expensive", label: "Дорого и сдержанно" },
+      ]
+      : romantic
+        ? [
+          { id: "touching", label: "Нежно и трогательно" },
+          { id: "romantic", label: "Романтично" },
+          { id: "wow", label: "Вау и эффектно" },
+          { id: "quiet_expensive", label: "Дорого и сдержанно" },
+        ]
+        : [
+          { id: "touching", label: "Нежно и трогательно" },
+          { id: "smile", label: "Просто вызвать улыбку" },
+          { id: "wow", label: "Вау и эффектно" },
+          { id: "smart", label: "Умно и небанально" },
+        ];
+  return [...base, { id: "other", label: "Другое" }];
 }
 
 function getGiftPriceVariant(budget: string, mode: "higher" | "lower") {

@@ -156,9 +156,17 @@ export interface GiftRequest {
   updated_at: string;
   session_id: string;
   recipient_type: string;
+  recipient_custom?: string;
   occasion: string;
+  occasion_custom?: string;
   desired_effect: string;
+  desired_effect_custom?: string;
   taste_knowledge: string;
+  flower_id_link?: string;
+  taste_note?: string;
+  taste_style_hint?: string;
+  taste_palette_hint?: string;
+  taste_format_hint?: string;
   avoid_items: string[];
   budget: string;
   recommended_style: string;
