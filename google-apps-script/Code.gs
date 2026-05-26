@@ -442,13 +442,29 @@ function appendGiftRequest(ss, record, receivedAt) {
 function appendGiftBouquets(ss, record, receivedAt) {
   const sheet = getSheet(ss, "gift_bouquets");
   const payload = record.payload || {};
-  sheet.appendRow([
+  const giftRequestId = payload.gift_request_id || record.id || "";
+  const row = [
     receivedAt,
-    payload.gift_request_id || record.id || "",
+    giftRequestId,
     payload.updated_at || record.created_at || "",
     JSON.stringify(payload.options || []),
     JSON.stringify(payload),
-  ]);
+  ];
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const idIndex = headers.indexOf("gift_request_id");
+  if (!giftRequestId || idIndex === -1 || sheet.getLastRow() < 2) {
+    sheet.appendRow(row);
+    return;
+  }
+
+  const existingIds = sheet.getRange(2, idIndex + 1, sheet.getLastRow() - 1, 1).getValues();
+  for (let index = existingIds.length - 1; index >= 0; index -= 1) {
+    if (String(existingIds[index][0]) === String(giftRequestId)) {
+      sheet.getRange(index + 2, 1, 1, row.length).setValues([row]);
+      return;
+    }
+  }
+  sheet.appendRow(row);
 }
 
 function findLatestRequest(ss, requestId) {
