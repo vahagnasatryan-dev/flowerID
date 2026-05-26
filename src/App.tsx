@@ -1455,9 +1455,11 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
 
   const attachPhoto = async (index: number, file: File | null) => {
     if (!file) return;
+    setSaveMessage("Загружаем фото...");
     try {
-      const image = await fileToCompressedDataUrl(file);
+      const image = await uploadGiftBouquetPhoto(file);
       updateOption(index, { image });
+      setSaveMessage("Фото загружено. Не забудьте сохранить варианты.");
     } catch (error) {
       setSaveMessage(`Не удалось загрузить фото: ${String(error)}`);
     }
@@ -1607,8 +1609,31 @@ function isMeaningfulGiftRequest(request: GiftRequest) {
   );
 }
 
-function fileToCompressedDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
+async function uploadGiftBouquetPhoto(file: File) {
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Не настроена загрузка фото. Добавьте VITE_CLOUDINARY_CLOUD_NAME и VITE_CLOUDINARY_UPLOAD_PRESET.");
+  }
+  const blob = await fileToCompressedImageBlob(file);
+  const formData = new FormData();
+  formData.append("file", blob, `${file.name.replace(/\.[^.]+$/, "") || "bouquet"}.jpg`);
+  formData.append("upload_preset", uploadPreset);
+  formData.append("folder", "flower-id/gift-bouquets");
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new Error("Cloudinary не принял фото. Проверьте upload preset.");
+  }
+  const payload = await response.json() as { secure_url?: string };
+  if (!payload.secure_url) throw new Error("Cloudinary не вернул ссылку на фото.");
+  return payload.secure_url;
+}
+
+function fileToCompressedImageBlob(file: File) {
+  return new Promise<Blob>((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error);
     reader.onload = () => {
@@ -1628,7 +1653,13 @@ function fileToCompressedDataUrl(file: File) {
           return;
         }
         context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.58));
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            reject(new Error("Не удалось сжать изображение"));
+            return;
+          }
+          resolve(blob);
+        }, "image/jpeg", 0.72);
       };
       image.src = String(reader.result || "");
     };

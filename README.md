@@ -25,6 +25,8 @@ MVP умеет отправлять данные во внешний collector e
 
 ```bash
 VITE_FLOWER_COLLECTOR_URL=https://script.google.com/macros/s/.../exec
+VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
+VITE_CLOUDINARY_UPLOAD_PRESET=your_unsigned_upload_preset
 ```
 
 Если переменная не задана, приложение работает полностью локально. Если endpoint временно недоступен, записи остаются в очереди `localStorage` и отправляются позже.
@@ -46,6 +48,23 @@ VITE_FLOWER_COLLECTOR_URL=https://script.google.com/macros/s/.../exec
 6. Who has access: `Anyone`.
 7. Скопируйте Web App URL.
 8. Добавьте URL в `.env.local` локально или в Vercel Environment Variables как `VITE_FLOWER_COLLECTOR_URL`.
+
+## Загрузка фото букетов
+
+Админка `/gift-admin` загружает фото букетов в Cloudinary unsigned upload и сохраняет в заявке публичный `secure_url`.
+
+Минимальная настройка:
+
+1. Создайте Cloudinary аккаунт.
+2. В Settings → Upload создайте unsigned upload preset.
+3. Добавьте в `.env.local` и Vercel Environment Variables:
+
+```bash
+VITE_CLOUDINARY_CLOUD_NAME=...
+VITE_CLOUDINARY_UPLOAD_PRESET=...
+```
+
+После изменения env-переменных нужно перезапустить `npm run dev` или сделать redeploy.
 
 ## Что реализовано
 

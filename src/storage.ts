@@ -185,20 +185,11 @@ export function saveGiftBouquetOptions(requestId: string, options: GiftBouquetPr
   const all = loadGiftBouquetOptionsMap();
   const updatedAt = new Date().toISOString();
   const next = { ...all, [requestId]: options };
-  try {
-    localStorage.setItem(giftBouquetsKey, JSON.stringify(next));
-  } catch (error) {
-    // Images are stored as data URLs in the MVP admin. If old test photos fill
-    // the browser quota, keep only the current request instead of failing silently.
-    localStorage.setItem(giftBouquetsKey, JSON.stringify({ [requestId]: options }));
-  }
+  localStorage.setItem(giftBouquetsKey, JSON.stringify(next));
   enqueueCollectorRecord("gift_bouquets", requestId, {
     gift_request_id: requestId,
     updated_at: updatedAt,
-    options: options.map((option) => ({
-      ...option,
-      image: option.image?.startsWith("data:") ? "[uploaded image stored locally]" : option.image,
-    })),
+    options,
   });
 }
 
