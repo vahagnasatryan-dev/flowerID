@@ -1615,7 +1615,7 @@ function fileToCompressedDataUrl(file: File) {
       const image = new Image();
       image.onerror = () => reject(new Error("Не удалось прочитать изображение"));
       image.onload = () => {
-        const maxSide = 900;
+        const maxSide = 520;
         const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
         const width = Math.max(1, Math.round(image.width * scale));
         const height = Math.max(1, Math.round(image.height * scale));
@@ -1628,7 +1628,7 @@ function fileToCompressedDataUrl(file: File) {
           return;
         }
         context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.72));
+        resolve(canvas.toDataURL("image/jpeg", 0.58));
       };
       image.src = String(reader.result || "");
     };
