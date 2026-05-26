@@ -231,6 +231,24 @@ export function loadGiftRequests(): Record<string, GiftRequest> {
   }
 }
 
+export async function syncGiftRequests() {
+  if (!collectorUrl) return loadGiftRequests();
+  const response = await collectorJsonp<{
+    ok: boolean;
+    requests?: GiftRequest[];
+  }>({ action: "get_gift_requests" });
+
+  if (!response?.ok || !response.requests) return loadGiftRequests();
+  const local = loadGiftRequests();
+  const synced = response.requests.reduce<Record<string, GiftRequest>>((acc, request) => {
+    if (request?.id) acc[request.id] = request;
+    return acc;
+  }, {});
+  const merged = { ...local, ...synced };
+  localStorage.setItem(giftRequestsKey, JSON.stringify(merged));
+  return merged;
+}
+
 export function loadFlowerOrders(): Record<string, FlowerOrder> {
   try {
     const raw = localStorage.getItem(ordersKey);

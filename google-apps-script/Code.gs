@@ -224,6 +224,16 @@ function doGet(e) {
     );
   }
 
+  if (params.action === "get_gift_requests") {
+    return apiResponse(
+      {
+        ok: true,
+        requests: findLatestGiftRequests(ss),
+      },
+      params.callback,
+    );
+  }
+
   return apiResponse({
     ok: true,
     service: "flower_id_collector",
@@ -473,6 +483,24 @@ function findLatestGiftBouquets(ss, requestId) {
     }
   }
   return [];
+}
+
+function findLatestGiftRequests(ss) {
+  const sheet = getSheet(ss, "gift_requests");
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0] || [];
+  const idIndex = headers.indexOf("gift_request_id");
+  const payloadIndex = headers.indexOf("payload_json");
+  if (idIndex === -1 || payloadIndex === -1) return [];
+
+  const byId = {};
+  for (let index = 1; index < rows.length; index += 1) {
+    const id = String(rows[index][idIndex] || "");
+    if (!id) continue;
+    const payload = parsePayload(rows[index][payloadIndex]);
+    if (payload) byId[id] = payload;
+  }
+  return Object.keys(byId).map((id) => byId[id]);
 }
 
 function parsePayload(value) {

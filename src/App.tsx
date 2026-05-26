@@ -39,6 +39,7 @@ import {
   startEditingSubmission,
   syncFlowerRequestStatus,
   syncGiftBouquetOptions,
+  syncGiftRequests,
   track,
 } from "./storage";
 import type { Answers, ArchetypeId, ComputedProfile, FlowerOrder, FlowerRequest, FlowerReaction, FlowerSubmission, GiftBouquetProposal, GiftRequest, Option, Reaction } from "./types";
@@ -1250,11 +1251,37 @@ function GiftContactModal({ value, onChange, onClose, onSubmit }: { value: strin
 
 function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
   const params = new URLSearchParams(window.location.search);
-  const giftRequestList = Object.values(loadGiftRequests());
-  const initialRequestId = params.get("requestId") || giftRequestList[giftRequestList.length - 1]?.id || "";
+  const [requests, setRequests] = useState<Record<string, GiftRequest>>(() => loadGiftRequests());
+  const [filter, setFilter] = useState<"all" | "pending" | "ready" | "selected">("pending");
+  const allGiftRequests = sortGiftRequests(Object.values(requests));
+  const giftRequestList = allGiftRequests.filter((request) => {
+    const proposalCount = loadGiftBouquetOptions(request.id).length;
+    if (filter === "pending") return !proposalCount && !request.selected_option;
+    if (filter === "ready") return proposalCount > 0 && !request.selected_option;
+    if (filter === "selected") return Boolean(request.selected_option);
+    return true;
+  });
+  const initialRequestId = params.get("requestId") || giftRequestList[0]?.id || "";
   const [requestId, setRequestId] = useState(initialRequestId);
   const [saved, setSaved] = useState(false);
   const [options, setOptions] = useState<GiftBouquetOption[]>(() => createAdminBouquetDrafts(initialRequestId));
+  const selectedRequest = requestId ? requests[requestId] : null;
+  const selectedOption = selectedRequest?.selected_option
+    ? options.find((option) => option.id === selectedRequest.selected_option)
+    : null;
+
+  useEffect(() => {
+    let alive = true;
+    syncGiftRequests().then((synced) => {
+      if (!alive) return;
+      const list = sortGiftRequests(Object.values(synced));
+      setRequests(synced);
+      if (!requestId && list[0]?.id) setRequestId(list[0].id);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     setOptions(createAdminBouquetDrafts(requestId));
@@ -1264,6 +1291,12 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
   const updateOption = (index: number, patch: Partial<GiftBouquetOption>) => {
     setOptions((current) => current.map((option, optionIndex) => optionIndex === index ? { ...option, ...patch } : option));
     setSaved(false);
+  };
+
+  const attachPhoto = async (index: number, file: File | null) => {
+    if (!file) return;
+    const image = await fileToCompressedDataUrl(file);
+    updateOption(index, { image });
   };
 
   const saveOptions = () => {
@@ -1290,41 +1323,121 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
         <Header step={0} onBack={() => navigate("/gift")} note="служебный экран" />
         <section className="screen gift-admin-screen">
           <p className="eyebrow">Flower ID Admin</p>
-          <h1>Реальные варианты букета</h1>
-          <p className="lead">Добавьте фото, цену и описание по номеру заявки. После сохранения варианты появятся на экране клиента.</p>
-          <label className="gift-admin-field">
-            Номер заявки
-            <input value={requestId} onChange={(event) => setRequestId(event.target.value)} placeholder="gift_..." />
-          </label>
-          <div className="gift-admin-options">
-            {options.map((option, index) => (
-              <article className="gift-admin-card" key={option.id || index}>
-                <strong>Вариант {index + 1}</strong>
-                <label>
-                  Название
-                  <input value={option.title} onChange={(event) => updateOption(index, { title: event.target.value })} placeholder="Например: Точно понравится" />
-                </label>
-                <label>
-                  Цена
-                  <input value={option.price} onChange={(event) => updateOption(index, { price: event.target.value })} placeholder="Например: 7 500 ₽" />
-                </label>
-                <label>
-                  Фото
-                  <input value={option.image} onChange={(event) => updateOption(index, { image: event.target.value })} placeholder="/archetypes/quiet-luxury.jpg или https://..." />
-                </label>
-                <label>
-                  Описание
-                  <textarea value={option.description} onChange={(event) => updateOption(index, { description: event.target.value })} placeholder="Что входит в букет и почему он подходит" />
-                </label>
-              </article>
-            ))}
+          <h1>Заявки на подбор</h1>
+          <p className="lead">Откройте необработанную заявку, загрузите реальные фото, цену и описание. Когда клиент выберет букет, выбор появится здесь.</p>
+          <div className="gift-admin-filters" role="tablist" aria-label="Фильтр заявок">
+            <button className={filter === "pending" ? "active" : ""} onClick={() => setFilter("pending")}>Ждут варианты</button>
+            <button className={filter === "ready" ? "active" : ""} onClick={() => setFilter("ready")}>Варианты готовы</button>
+            <button className={filter === "selected" ? "active" : ""} onClick={() => setFilter("selected")}>Клиент выбрал</button>
+            <button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>Все</button>
           </div>
-          {saved && <p className="gift-admin-saved">Сохранено. На клиентском экране появятся реальные варианты.</p>}
-          <button className="primary-button" disabled={!requestId.trim()} onClick={saveOptions}>Сохранить варианты</button>
+          <div className="gift-admin-layout">
+            <aside className="gift-admin-list">
+              {giftRequestList.length === 0 && <p className="gift-admin-empty">В этом статусе пока нет заявок.</p>}
+              {giftRequestList.map((request) => {
+                const proposalCount = loadGiftBouquetOptions(request.id).length;
+                const statusLabel = request.selected_option ? "Клиент выбрал" : proposalCount ? "Варианты добавлены" : "Ждёт варианты";
+                return (
+                  <button
+                    className={`gift-admin-request ${request.id === requestId ? "selected" : ""}`}
+                    key={request.id}
+                    onClick={() => setRequestId(request.id)}
+                  >
+                    <strong>{giftRecipientLabel(request)}</strong>
+                    <span>{giftOccasionLabel(request)} · {giftLabel(budgetOptions, request.budget) || "бюджет не выбран"}</span>
+                    <em>{statusLabel}</em>
+                  </button>
+                );
+              })}
+            </aside>
+
+            <div className="gift-admin-editor">
+              <label className="gift-admin-field">
+                Номер заявки
+                <input value={requestId} onChange={(event) => setRequestId(event.target.value)} placeholder="gift_..." />
+              </label>
+              {selectedRequest && (
+                <article className="gift-admin-brief">
+                  <strong>Бриф</strong>
+                  <span>Кому: {giftRecipientLabel(selectedRequest)}</span>
+                  <span>Повод: {giftOccasionLabel(selectedRequest)}</span>
+                  <span>Эффект: {giftEffectLabel(selectedRequest)}</span>
+                  <span>Бюджет: {giftLabel(budgetOptions, selectedRequest.budget) || "не выбран"}</span>
+                  {selectedRequest.telegram_contact && <span>Контакт: {selectedRequest.telegram_contact}</span>}
+                  {selectedRequest.taste_note && <span>Вкус: {selectedRequest.taste_note}</span>}
+                </article>
+              )}
+              {selectedOption && (
+                <article className="gift-admin-choice">
+                  <strong>Итоговый выбор клиента</strong>
+                  <span>{selectedOption.title} · {selectedOption.price}</span>
+                </article>
+              )}
+              <div className="gift-admin-options">
+                {options.map((option, index) => (
+                  <article className="gift-admin-card" key={option.id || index}>
+                    <strong>Вариант {index + 1}</strong>
+                    {option.image && <div className="gift-admin-photo-preview" style={{ backgroundImage: `url(${option.image})` }} />}
+                    <label>
+                      Фото букета
+                      <input type="file" accept="image/*" onChange={(event) => attachPhoto(index, event.target.files?.[0] || null)} />
+                    </label>
+                    <label>
+                      Название
+                      <input value={option.title} onChange={(event) => updateOption(index, { title: event.target.value })} placeholder="Например: Точно понравится" />
+                    </label>
+                    <label>
+                      Цена
+                      <input value={option.price} onChange={(event) => updateOption(index, { price: event.target.value })} placeholder="Например: 7 500 ₽" />
+                    </label>
+                    <label>
+                      Описание
+                      <textarea value={option.description} onChange={(event) => updateOption(index, { description: event.target.value })} placeholder="Что входит в букет и почему он подходит" />
+                    </label>
+                  </article>
+                ))}
+              </div>
+              {saved && <p className="gift-admin-saved">Сохранено. На клиентском экране появятся реальные варианты.</p>}
+              <button className="primary-button" disabled={!requestId.trim()} onClick={saveOptions}>Сохранить варианты</button>
+            </div>
+          </div>
         </section>
       </section>
     </main>
   );
+}
+
+function sortGiftRequests(requests: GiftRequest[]) {
+  return [...requests].sort((a, b) => String(b.updated_at || b.created_at).localeCompare(String(a.updated_at || a.created_at)));
+}
+
+function fileToCompressedDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error("Не удалось прочитать изображение"));
+      image.onload = () => {
+        const maxSide = 1200;
+        const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          reject(new Error("Не удалось подготовить изображение"));
+          return;
+        }
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      image.src = String(reader.result || "");
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function createAdminBouquetDrafts(requestId: string): GiftBouquetOption[] {
