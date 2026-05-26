@@ -1304,6 +1304,16 @@ function GiftRequestPage({ requestId, navigate }: { requestId: string; navigate:
     refresh();
   }, [requestId]);
 
+  useEffect(() => {
+    if (options.length > 0) return;
+    const timer = window.setInterval(() => {
+      syncGiftBouquetOptions(requestId).then((freshOptions) => {
+        if (freshOptions.length > 0) setOptions(freshOptions);
+      });
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [requestId, options.length]);
+
   const chooseOption = (option: GiftBouquetOption) => {
     if (!request) return;
     const updated: GiftRequest = {
@@ -1488,10 +1498,12 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
     }
     try {
       saveGiftBouquetOptions(requestId, readyOptions);
+      flushCollectorQueue();
       track("gift_bouquets_saved", { giftRequestId: requestId, count: readyOptions.length });
       setOptions(readyOptions.length ? readyOptions : createAdminBouquetDrafts(requestId));
       setSaveMessage(readyOptions.length >= 3 ? "Сохранено. На клиентском экране появятся реальные варианты." : `Сохранено ${readyOptions.length} из 3 вариантов.`);
       setQueueSize(getCollectorQueueSize());
+      window.setTimeout(() => setQueueSize(getCollectorQueueSize()), 1200);
     } catch (error) {
       setSaveMessage(`Не удалось сохранить варианты. Попробуйте фото меньшего размера. ${String(error)}`);
     }
