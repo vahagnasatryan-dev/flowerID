@@ -665,46 +665,43 @@ const giftStyleGuide: Record<GiftStyleId, Omit<GiftRecommendation, "styleId" | "
   },
 };
 
+function createEmptyGiftRequest(): GiftRequest {
+  const now = new Date().toISOString();
+  return {
+    id: createId("gift"),
+    created_at: now,
+    updated_at: now,
+    session_id: "",
+    recipient_type: "",
+    recipient_custom: "",
+    occasion: "",
+    occasion_custom: "",
+    desired_effect: "",
+    desired_effect_custom: "",
+    taste_knowledge: "",
+    flower_id_link: "",
+    taste_note: "",
+    taste_style_hint: "",
+    taste_palette_hint: "",
+    taste_format_hint: "",
+    avoid_items: [],
+    budget: "",
+    recommended_style: "",
+    selected_option: "",
+    selected_card_text: "",
+    postcard_text: "",
+    telegram_contact: "",
+    telegram_clicked: false,
+    source: window.location.search || "direct",
+    status: "created",
+    last_step: "recipient",
+  };
+}
+
 function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
   const [showIntro, setShowIntro] = useState(true);
   const [step, setStep] = useState<GiftStep>("recipient");
-  const [request, setRequest] = useState<GiftRequest>(() => {
-    const existingId = sessionStorage.getItem(activeGiftRequestKey);
-    const existing = existingId ? loadGiftRequest(existingId) : null;
-    if (existing && existing.status !== "telegram_clicked") return existing;
-    const now = new Date().toISOString();
-    const next: GiftRequest = {
-      id: createId("gift"),
-      created_at: now,
-      updated_at: now,
-      session_id: "",
-      recipient_type: "",
-      recipient_custom: "",
-      occasion: "",
-      occasion_custom: "",
-      desired_effect: "",
-      desired_effect_custom: "",
-      taste_knowledge: "",
-      flower_id_link: "",
-      taste_note: "",
-      taste_style_hint: "",
-      taste_palette_hint: "",
-      taste_format_hint: "",
-      avoid_items: [],
-      budget: "",
-      recommended_style: "",
-      selected_option: "",
-      selected_card_text: "",
-      postcard_text: "",
-      telegram_contact: "",
-      telegram_clicked: false,
-      source: window.location.search || "direct",
-      status: "created",
-      last_step: "recipient",
-    };
-    sessionStorage.setItem(activeGiftRequestKey, next.id);
-    return next;
-  });
+  const [request, setRequest] = useState<GiftRequest>(() => createEmptyGiftRequest());
   const [showContactModal, setShowContactModal] = useState(false);
   const [telegramContact, setTelegramContact] = useState(request.telegram_contact || "");
   const [orderAccepted, setOrderAccepted] = useState(false);
@@ -717,10 +714,6 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
   useEffect(() => {
     track("page_view", { page: "gift_concierge", giftRequestId: request.id, step });
   }, [request.id, step]);
-
-  useEffect(() => {
-    saveGiftRequest(request);
-  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -745,6 +738,19 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
     saveGiftRequest(updated);
     if (eventName) track(eventName, { giftRequestId: updated.id, ...patch });
     if (nextStep) setStep(nextStep);
+  };
+
+  const startGiftFlow = () => {
+    const next = createEmptyGiftRequest();
+    sessionStorage.setItem(activeGiftRequestKey, next.id);
+    setRequest(next);
+    setTelegramContact("");
+    setOrderAccepted(false);
+    setBouquetOptions([]);
+    setStep("recipient");
+    saveGiftRequest(next);
+    track("start_gift_flow_clicked", { source: "gift_intro", giftRequestId: next.id });
+    setShowIntro(false);
   };
 
   const chooseSingle = (field: keyof Pick<GiftRequest, "recipient_type" | "occasion" | "desired_effect" | "taste_knowledge" | "budget">, value: string, nextStep: GiftStep, eventName: string) => {
@@ -806,8 +812,7 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
               </p>
               <div className="hero-actions landing-actions">
                 <button className="primary-button" onClick={() => {
-                  track("start_gift_flow_clicked", { source: "gift_intro" });
-                  setShowIntro(false);
+                  startGiftFlow();
                 }}>Подобрать букет</button>
                 <p className="cta-note">3 минуты · 3 персональных варианта · согласуем детали перед заказом</p>
               </div>
@@ -1253,7 +1258,7 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
   const params = new URLSearchParams(window.location.search);
   const [requests, setRequests] = useState<Record<string, GiftRequest>>(() => loadGiftRequests());
   const [filter, setFilter] = useState<"all" | "pending" | "ready" | "selected">("pending");
-  const allGiftRequests = sortGiftRequests(Object.values(requests));
+  const allGiftRequests = sortGiftRequests(Object.values(requests).filter(isMeaningfulGiftRequest));
   const giftRequestList = allGiftRequests.filter((request) => {
     const proposalCount = loadGiftBouquetOptions(request.id).length;
     if (filter === "pending") return !proposalCount && !request.selected_option;
@@ -1409,6 +1414,18 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
 
 function sortGiftRequests(requests: GiftRequest[]) {
   return [...requests].sort((a, b) => String(b.updated_at || b.created_at).localeCompare(String(a.updated_at || a.created_at)));
+}
+
+function isMeaningfulGiftRequest(request: GiftRequest) {
+  return Boolean(
+    request.recipient_type ||
+    request.occasion ||
+    request.desired_effect ||
+    request.taste_knowledge ||
+    request.budget ||
+    request.telegram_contact ||
+    request.selected_option,
+  );
 }
 
 function fileToCompressedDataUrl(file: File) {
