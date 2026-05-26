@@ -3647,6 +3647,29 @@ body {
   gap: 18px;
 }
 
+.gift-admin-diagnostics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gift-admin-diagnostics span,
+.gift-admin-sync-note {
+  border-radius: 18px;
+  background: #f7f1eb;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 850;
+  line-height: 1.28;
+  margin: 0;
+  padding: 11px 12px;
+}
+
+.gift-admin-sync-note {
+  background: #edf3ea;
+  color: var(--ink);
+}
+
 .gift-admin-filters {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -1258,6 +1258,8 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
   const params = new URLSearchParams(window.location.search);
   const [requests, setRequests] = useState<Record<string, GiftRequest>>(() => loadGiftRequests());
   const [filter, setFilter] = useState<"all" | "pending" | "ready" | "selected">("pending");
+  const [syncNote, setSyncNote] = useState("");
+  const [queueSize, setQueueSize] = useState(() => getCollectorQueueSize());
   const allGiftRequests = sortGiftRequests(Object.values(requests).filter(isMeaningfulGiftRequest));
   const giftRequestList = allGiftRequests.filter((request) => {
     const proposalCount = loadGiftBouquetOptions(request.id).length;
@@ -1275,17 +1277,26 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
     ? options.find((option) => option.id === selectedRequest.selected_option)
     : null;
 
-  useEffect(() => {
+  const refreshGiftRequests = () => {
+    flushCollectorQueue();
+    setQueueSize(getCollectorQueueSize());
     let alive = true;
+    setSyncNote(isCollectorConfigured() ? "Обновляем заявки..." : "Google Sheets collector не подключён в этой сборке.");
     syncGiftRequests().then((synced) => {
       if (!alive) return;
       const list = sortGiftRequests(Object.values(synced));
       setRequests(synced);
       if (!requestId && list[0]?.id) setRequestId(list[0].id);
+      setQueueSize(getCollectorQueueSize());
+      setSyncNote(isCollectorConfigured() ? "Заявки обновлены." : "Показаны только локальные заявки этого браузера.");
     });
     return () => {
       alive = false;
     };
+  };
+
+  useEffect(() => {
+    return refreshGiftRequests();
   }, []);
 
   useEffect(() => {
@@ -1330,6 +1341,14 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
           <p className="eyebrow">Flower ID Admin</p>
           <h1>Заявки на подбор</h1>
           <p className="lead">Откройте необработанную заявку, загрузите реальные фото, цену и описание. Когда клиент выберет букет, выбор появится здесь.</p>
+          <div className="gift-admin-diagnostics">
+            <span>Локально: {allGiftRequests.length}</span>
+            <span>В фильтре: {giftRequestList.length}</span>
+            <span>Очередь: {queueSize}</span>
+            <span>{isCollectorConfigured() ? `Sheets: ${getCollectorUrlHint()}` : "Sheets: не подключён"}</span>
+          </div>
+          <button className="secondary-button" onClick={() => { refreshGiftRequests(); }}>Обновить заявки</button>
+          {syncNote && <p className="gift-admin-sync-note">{syncNote}</p>}
           <div className="gift-admin-filters" role="tablist" aria-label="Фильтр заявок">
             <button className={filter === "pending" ? "active" : ""} onClick={() => setFilter("pending")}>Ждут варианты</button>
             <button className={filter === "ready" ? "active" : ""} onClick={() => setFilter("ready")}>Варианты готовы</button>
