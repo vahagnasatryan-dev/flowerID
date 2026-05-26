@@ -155,6 +155,7 @@ export default function App() {
   }
   if (path === "/request") return <RequestPage navigate={navigate} />;
   if (path === "/gift") return <GiftConciergePage navigate={navigate} />;
+  if (path.startsWith("/gift-request/")) return <GiftRequestPage requestId={decodeURIComponent(path.split("/gift-request/")[1] || "")} navigate={navigate} />;
   if (path === "/gift-admin") return <GiftAdminPage navigate={navigate} />;
   if (path.startsWith("/request-status/")) return <RequestStatusPage requestId={decodeURIComponent(path.split("/request-status/")[1] || "")} navigate={navigate} />;
   if (path.startsWith("/order-next/")) return <OrderNextStepsPage orderId={decodeURIComponent(path.split("/order-next/")[1] || "")} navigate={navigate} />;
@@ -754,6 +755,20 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
   };
 
   const chooseSingle = (field: keyof Pick<GiftRequest, "recipient_type" | "occasion" | "desired_effect" | "taste_knowledge" | "budget">, value: string, nextStep: GiftStep, eventName: string) => {
+    if (field === "budget" && nextStep === "result") {
+      const updated: GiftRequest = {
+        ...request,
+        [field]: value,
+        updated_at: new Date().toISOString(),
+        last_step: "result",
+      };
+      updated.recommended_style = buildGiftRecommendation(updated).styleName;
+      setRequest(updated);
+      saveGiftRequest(updated);
+      track(eventName, { giftRequestId: updated.id, [field]: value });
+      navigate(`/gift-request/${encodeURIComponent(updated.id)}`);
+      return;
+    }
     updateGiftRequest({ [field]: value } as Partial<GiftRequest>, nextStep, eventName);
   };
 
@@ -993,6 +1008,7 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
               recommendation={recommendation}
               options={bouquetOptions}
               onSelect={chooseBouquet}
+              onRefresh={() => syncGiftBouquetOptions(request.id).then(setBouquetOptions)}
             />
           )}
 
@@ -1150,7 +1166,19 @@ function GiftBottomNav({ onBack, onNext, nextDisabled }: { onBack: () => void; o
   );
 }
 
-function GiftRecommendationScreen({ request, recommendation, options, onSelect }: { request: GiftRequest; recommendation: GiftRecommendation; options: GiftBouquetOption[]; onSelect: (option: GiftBouquetOption) => void }) {
+function GiftRecommendationScreen({
+  request,
+  recommendation,
+  options,
+  onSelect,
+  onRefresh,
+}: {
+  request: GiftRequest;
+  recommendation: GiftRecommendation;
+  options: GiftBouquetOption[];
+  onSelect: (option: GiftBouquetOption) => void;
+  onRefresh?: () => void;
+}) {
   useEffect(() => {
     track("recommendation_viewed", { giftRequestId: request.id, recommendedStyle: recommendation.styleName, budget: request.budget, realOptions: options.length });
   }, [recommendation.styleName, options.length, request.budget, request.id]);
@@ -1172,6 +1200,7 @@ function GiftRecommendationScreen({ request, recommendation, options, onSelect }
           <p>
             Флорист посмотрит ответы, бюджет и повод. Скоро здесь появятся реальные букеты с фото, описанием, ценой и возможностью заказать.
           </p>
+          {onRefresh && <button className="secondary-button" onClick={onRefresh}>Проверить варианты</button>}
         </article>
       ) : (
         <div className="gift-bouquet-options">
@@ -1251,6 +1280,121 @@ function GiftContactModal({ value, onChange, onClose, onSubmit }: { value: strin
         <button className="primary-button" type="button" onClick={onSubmit} disabled={!value.trim()}>Отправить заявку</button>
       </section>
     </div>
+  );
+}
+
+function GiftRequestPage({ requestId, navigate }: { requestId: string; navigate: (url: string) => void }) {
+  const [request, setRequest] = useState<GiftRequest | null>(() => loadGiftRequest(requestId));
+  const [options, setOptions] = useState<GiftBouquetOption[]>(() => loadGiftBouquetOptions(requestId));
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [telegramContact, setTelegramContact] = useState(request?.telegram_contact || "");
+  const [orderAccepted, setOrderAccepted] = useState(false);
+  const recommendation = useMemo(() => buildGiftRecommendation(request || createEmptyGiftRequest()), [request]);
+  const selectedOption = request?.selected_option ? options.find((option) => option.id === request.selected_option) ?? null : null;
+
+  const refresh = () => {
+    syncGiftRequests().then((synced) => {
+      setRequest(synced[requestId] ?? loadGiftRequest(requestId));
+    });
+    syncGiftBouquetOptions(requestId).then(setOptions);
+  };
+
+  useEffect(() => {
+    track("gift_request_viewed", { giftRequestId: requestId });
+    refresh();
+  }, [requestId]);
+
+  const chooseOption = (option: GiftBouquetOption) => {
+    if (!request) return;
+    const updated: GiftRequest = {
+      ...request,
+      selected_option: option.id,
+      selected_card_text: option.description,
+      updated_at: new Date().toISOString(),
+      last_step: "final",
+    };
+    setRequest(updated);
+    saveGiftRequest(updated);
+    track("bouquet_option_selected", { giftRequestId: updated.id, selected_option: option.id });
+  };
+
+  const submitContact = () => {
+    if (!request) return;
+    const contact = telegramContact.trim();
+    if (!contact) return;
+    const updated: GiftRequest = {
+      ...request,
+      telegram_contact: contact,
+      telegram_clicked: true,
+      status: "telegram_clicked",
+      updated_at: new Date().toISOString(),
+      last_step: "final",
+    };
+    setRequest(updated);
+    saveGiftRequest(updated);
+    track("telegram_clicked", { giftRequestId: updated.id, selectedOption: updated.selected_option, budget: updated.budget, contactProvided: true });
+    track("flow_completed", { giftRequestId: updated.id });
+    setShowContactModal(false);
+    setOrderAccepted(true);
+  };
+
+  if (!request) {
+    return (
+      <main className="app-shell gift-app-shell">
+        <section className="quiz-frame gift-frame">
+          <Header step={0} onBack={() => navigate("/gift")} note="заявка" />
+          <section className="screen gift-screen">
+            <p className="eyebrow">Заявка не найдена</p>
+            <h1>Не получилось открыть подбор</h1>
+            <p className="lead">Возможно, ссылка была скопирована не полностью или заявка ещё не синхронизировалась.</p>
+            <button className="primary-button" onClick={() => navigate("/gift")}>Создать новую заявку</button>
+          </section>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="app-shell gift-app-shell">
+      <section className="quiz-frame gift-frame">
+        <Header step={0} onBack={() => navigate("/gift")} note={`заявка ${request.id.slice(0, 8)}`} />
+        <section className="screen gift-screen">
+          {selectedOption ? (
+            <GiftFinalScreen
+              request={request}
+              recommendation={recommendation}
+              selectedOption={selectedOption}
+              onTelegram={() => {
+                setTelegramContact(request.telegram_contact || "");
+                setShowContactModal(true);
+              }}
+              orderAccepted={orderAccepted}
+            />
+          ) : (
+            <GiftRecommendationScreen
+              request={request}
+              recommendation={recommendation}
+              options={options}
+              onSelect={chooseOption}
+              onRefresh={refresh}
+            />
+          )}
+          {selectedOption && <button className="text-button gift-back-inline" onClick={() => {
+            const updated = { ...request, selected_option: "", selected_card_text: "", updated_at: new Date().toISOString(), last_step: "result" };
+            setRequest(updated);
+            saveGiftRequest(updated);
+          }}>Выбрать другой вариант</button>}
+        </section>
+      </section>
+      {showContactModal && (
+        <GiftContactModal
+          value={telegramContact}
+          onChange={setTelegramContact}
+          onClose={() => setShowContactModal(false)}
+          onSubmit={submitContact}
+        />
+      )}
+    </main>
   );
 }
 
