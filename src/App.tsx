@@ -26,11 +26,11 @@ import {
   loadStep,
   loadSubmission,
   loadSubmissions,
+  publishGiftBouquetOptions,
   resetStorage,
   saveAnswers,
   saveFlowerOrder,
   saveFlowerRequest,
-  saveGiftBouquetOptions,
   saveGiftRequest,
   saveResultFeedback,
   saveStep,
@@ -1561,7 +1561,7 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
     }
   };
 
-  const saveOptions = () => {
+  const saveOptions = async () => {
     if (!requestId.trim()) {
       setSaveMessage("Выберите заявку перед сохранением.");
       return;
@@ -1582,7 +1582,8 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
       return;
     }
     try {
-      saveGiftBouquetOptions(requestId, readyOptions);
+      setSaveMessage("Публикуем варианты для клиента...");
+      const published = await publishGiftBouquetOptions(requestId, readyOptions);
       if (selectedRequest && !["telegram_clicked", "ordered", "completed", "cancelled"].includes(selectedRequest.status)) {
         const updatedRequest = patchGiftRequest(selectedRequest, { status: "options_ready", last_step: "result" }, "admin_saved_options");
         setRequests((current) => ({ ...current, [updatedRequest.id]: updatedRequest }));
@@ -1591,7 +1592,15 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
       flushCollectorQueue();
       track("gift_bouquets_saved", { giftRequestId: requestId, count: readyOptions.length });
       setOptions(readyOptions.length ? readyOptions : createAdminBouquetDrafts(requestId));
-      setSaveMessage(readyOptions.length >= 3 ? "Сохранено. На клиентском экране появятся реальные варианты." : `Сохранено ${readyOptions.length} из 3 вариантов.`);
+      if (!published.published) {
+        setSaveMessage(isCollectorConfigured()
+          ? "Сохранено локально, но не удалось опубликовать клиенту. Обновите Apps Script deployment и попробуйте ещё раз."
+          : "Сохранено только локально. Подключите Google Sheets collector, чтобы клиент увидел варианты.");
+      } else {
+        setSaveMessage(readyOptions.length >= 3
+          ? "Опубликовано. Клиент уже может открыть реальные варианты."
+          : `Опубликовано ${readyOptions.length} из 3 вариантов.`);
+      }
       setQueueSize(getCollectorQueueSize());
       window.setTimeout(() => setQueueSize(getCollectorQueueSize()), 1200);
     } catch (error) {

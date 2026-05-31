@@ -204,6 +204,23 @@ function doGet(e) {
   Object.keys(SHEET_HEADERS).forEach((name) => getSheet(ss, name));
   const params = (e && e.parameter) || {};
 
+  if (params.action === "save_gift_bouquets" && params.gift_request_id && params.options_json) {
+    const options = parsePayload(params.options_json);
+    if (!Array.isArray(options)) {
+      return apiResponse({ ok: false, error: "options_json must be an array" }, params.callback);
+    }
+    appendGiftBouquets(ss, {
+      id: "gift_bouquets_direct_" + params.gift_request_id + "_" + new Date().getTime(),
+      created_at: params.updated_at || new Date().toISOString(),
+      payload: {
+        gift_request_id: params.gift_request_id,
+        updated_at: params.updated_at || new Date().toISOString(),
+        options: options,
+      },
+    }, new Date().toISOString());
+    return apiResponse({ ok: true, options: options }, params.callback);
+  }
+
   if (params.action === "get_request" && params.request_id) {
     return apiResponse(
       {

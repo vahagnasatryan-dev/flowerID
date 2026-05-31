@@ -193,6 +193,26 @@ export function saveGiftBouquetOptions(requestId: string, options: GiftBouquetPr
   });
 }
 
+export async function publishGiftBouquetOptions(requestId: string, options: GiftBouquetProposal[]) {
+  saveGiftBouquetOptions(requestId, options);
+  if (!collectorUrl) return { ok: false, published: false, options };
+
+  const response = await collectorJsonp<{
+    ok: boolean;
+    options?: GiftBouquetProposal[];
+  }>({
+    action: "save_gift_bouquets",
+    gift_request_id: requestId,
+    updated_at: new Date().toISOString(),
+    options_json: JSON.stringify(options),
+  });
+
+  if (!response?.ok || !response.options) return { ok: false, published: false, options };
+  const all = loadGiftBouquetOptionsMap();
+  localStorage.setItem(giftBouquetsKey, JSON.stringify({ ...all, [requestId]: response.options }));
+  return { ok: true, published: true, options: response.options };
+}
+
 export function loadGiftBouquetOptions(requestId: string): GiftBouquetProposal[] {
   return loadGiftBouquetOptionsMap()[requestId] ?? [];
 }

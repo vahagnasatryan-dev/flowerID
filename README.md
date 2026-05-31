@@ -50,6 +50,8 @@ VITE_CLOUDINARY_UPLOAD_PRESET=your_unsigned_upload_preset
 7. Скопируйте Web App URL.
 8. Добавьте URL в `.env.local` локально или в Vercel Environment Variables как `VITE_FLOWER_COLLECTOR_URL`.
 
+После каждого изменения `google-apps-script/Code.gs` откройте `Deploy` → `Manage deployments` → `Edit`, выберите `New version` и нажмите `Deploy`. Админка подтверждает публикацию вариантов клиенту только после ответа актуального Apps Script deployment.
+
 ## Загрузка фото букетов
 
 Админка `/gift-admin` загружает фото букетов в Cloudinary unsigned upload и сохраняет в заявке публичный `secure_url`.
