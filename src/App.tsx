@@ -139,6 +139,19 @@ export default function App() {
     return () => window.removeEventListener("online", flushCollectorQueue);
   }, []);
 
+  useEffect(() => {
+    const onFocus = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !target.matches(".primary-button, .landing-path-card")) return;
+      track("accessibility_cta_focus", {
+        path: window.location.pathname,
+        label: target.textContent?.trim().slice(0, 80) || target.getAttribute("aria-label") || "",
+      });
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, []);
+
   const navigate = (url: string) => {
     window.history.pushState({}, "", url);
     setQuizActive(sessionStorage.getItem(activeQuizKey) === "1");
@@ -157,6 +170,8 @@ export default function App() {
   if (path === "/gift") return <GiftConciergePage navigate={navigate} />;
   if (path.startsWith("/gift-request/")) return <GiftRequestPage requestId={decodeURIComponent(path.split("/gift-request/")[1] || "")} navigate={navigate} />;
   if (path === "/gift-admin") return <GiftAdminPage navigate={navigate} />;
+  if (path === "/how-it-works") return <HowItWorksPage navigate={navigate} />;
+  if (path.startsWith("/continue/")) return <ResumeQuizPage token={decodeURIComponent(path.split("/continue/")[1] || "")} navigate={navigate} />;
   if (path.startsWith("/request-status/")) return <RequestStatusPage requestId={decodeURIComponent(path.split("/request-status/")[1] || "")} navigate={navigate} />;
   if (path.startsWith("/order-next/")) return <OrderNextStepsPage orderId={decodeURIComponent(path.split("/order-next/")[1] || "")} navigate={navigate} />;
   if (path === "/my-flower-id") return <MyFlowerIdPage navigate={navigate} startQuiz={() => setQuizActive(true)} />;
@@ -164,7 +179,8 @@ export default function App() {
   if (path.startsWith("/r/")) return <RecipientRequestPage requestToken={decodeURIComponent(path.split("/r/")[1] || "")} navigate={navigate} />;
   if (path.startsWith("/result/")) return <StoredResultPage submissionId={decodeURIComponent(path.split("/result/")[1] || "")} navigate={navigate} />;
   if (path === "/" && quizActive) return <QuizApp navigate={navigate} onExit={() => setQuizActive(false)} />;
-  return <LandingPage navigate={navigate} startQuiz={() => setQuizActive(true)} key={routeKey} />;
+  if (path === "/") return <LandingPage navigate={navigate} startQuiz={() => setQuizActive(true)} key={routeKey} />;
+  return <NotFoundPage navigate={navigate} />;
 }
 
 function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit: () => void }) {
@@ -291,12 +307,19 @@ function QuizApp({ navigate, onExit }: { navigate: (url: string) => void; onExit
     window.setTimeout(() => setToast(""), 2800);
   };
 
+  const copyResumeLink = async () => {
+    const token = encodeQuizProgress({ answers, step });
+    const copied = await copyToClipboard(`${window.location.origin}/continue/${encodeURIComponent(token)}`);
+    track("quiz_resume_link_copied", { step });
+    showToast(copied ? "Ссылка для продолжения скопирована" : "Не удалось скопировать ссылку");
+  };
+
   return (
     <main className="app-shell">
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
       <section className="quiz-frame">
-        <Header step={step} onBack={back} />
+        <Header step={step} onBack={back} onCopyResume={copyResumeLink} />
 
         {isFinishing && <LoadingScreen message={finishMessage} />}
 
@@ -400,28 +423,25 @@ function PublicProfile({
     <main className="app-shell">
       <section className="quiz-frame public-frame">
         <div className="screen result-screen premium-result-screen public-result-screen">
-          <header className="result-brand-header">
-            <span className="brand-mark">Flower ID</span>
-            <span>для букетов без ошибок</span>
-          </header>
+          <ResultHeader navigate={navigate} />
           <ResultHero
             name={publicName}
             archetypeName={defaults.name}
             title={payload.name ? `Flower ID ${payload.name}` : "Flower ID готов"}
-            subtitle={`Теперь понятно, какой букет действительно подходит для ${publicName}.`}
-            description={makePublicResultText(payload.description)}
+            subtitle={`Теперь понятно, какой букет подойдёт получателю Flower ID: ${publicName}.`}
+            description={makePublicResultText(payload.description, publicName)}
             tags={defaults.tags}
             submissionId={payload.flower_id ?? ""}
           />
           <ArchetypeVisualReferences visuals={defaults.visuals} name={publicName} isShared />
           <section className="flower-id-profile-card">
-            <ProfileSection title="Палитра Flower ID">
+            <ProfileSection title="Палитра профиля">
               <PaletteSwatches palette={palette} />
             </ProfileSection>
-            <ProfileSection title="Подойдут к этому Flower ID">
+            <ProfileSection title="Подходящие цветы">
               <ChipList items={payload.favorite_flowers} fallback="Флорист подберёт цветы по стилю." />
             </ProfileSection>
-            <ProfileSection title="Лучше не дарить" tone="warning">
+            <ProfileSection title="Что лучше не дарить" tone="warning">
               <ChipList items={payload.avoid_flowers} fallback="Жёсткого стоп-листа нет." />
             </ProfileSection>
             <ProfileSection title="Формат">
@@ -446,6 +466,7 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
     saveAnswers(structuredClone(defaultAnswers));
     saveStep(1);
     sessionStorage.setItem(activeQuizKey, "1");
+    track("home_scenario_selected", { scenario: "create_flower_id" });
     track("start_quiz_clicked");
     if (requestId) {
       const request = loadFlowerRequest(requestId);
@@ -466,20 +487,21 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
     navigate(window.location.search ? `/${window.location.search}` : "/");
   };
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("create") === "1") start();
+  }, []);
+
   return (
     <main className="app-shell">
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
       <section className="quiz-frame landing-frame">
-        <header className="topbar start-topbar">
-          <span className="brand-mark">Flower ID</span>
-          <span className="start-topbar-note">для букетов без ошибок</span>
-        </header>
+        <Header step={0} onBack={() => navigate("/")} note="для букетов без ошибок" />
         <section className="screen hero-screen landing-screen">
           <div className="hero-layout">
             <div className="hero-copy">
               <p className="eyebrow">Flower ID</p>
-              <h1>Букеты без догадок</h1>
+              <h1>Подберите букет, который точно понравится</h1>
               <p className="lead">
                 Flower ID помогает понять вкус человека, подобрать букет под ситуацию и оформить заказ без риска ошибиться.
               </p>
@@ -490,6 +512,7 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
                   <p>Чтобы близким было проще дарить тебе букеты, которые действительно подходят.</p>
                 </button>
                 <button className="landing-path-card" onClick={() => {
+                  track("home_scenario_selected", { scenario: "gift_concierge" });
                   track("gift_concierge_link_clicked", { source: "landing" });
                   navigate("/gift");
                 }}>
@@ -498,17 +521,19 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
                   <p>Для конкретного человека, повода, эмоции и бюджета. Получите 3 персональных варианта.</p>
                 </button>
                 <button className="landing-path-card" onClick={() => {
+                  track("home_scenario_selected", { scenario: "request_flower_id" });
                   track("request_flower_id_clicked", { source: "landing" });
                   navigate("/request");
                 }}>
-                  <span>Для близкого</span>
+                  <span>Узнать вкус</span>
                   <strong>Узнать Flower ID другого человека</strong>
-                  <p>Отправьте красивую ссылку, а потом закажите букет по готовому профилю.</p>
+                  <p>Отправьте запрос, получатель создаст профиль, а вы закажете букет по готовому Flower ID.</p>
                 </button>
               </div>
               <div className="hero-actions landing-actions">
-                <p className="cta-note">2–3 минуты · без регистрации · заказ через Telegram</p>
-                <button className="landing-my-link" onClick={() => navigate("/my-flower-id")}>Мои сохраненные Flower ID</button>
+                <p className="cta-note">2–3 минуты · без регистрации · согласуем букет перед отправкой</p>
+                <button className="landing-my-link" onClick={() => navigate("/my-flower-id")}>Открыть мои Flower ID</button>
+                <button className="landing-my-link" onClick={() => navigate("/how-it-works")}>Как это работает</button>
               </div>
               <div className="landing-benefit">
                 <strong>Создай профиль.</strong>
@@ -528,6 +553,10 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
                   <strong>Как на фото</strong>
                   <p>Перед отправкой согласуем внешний вид, чтобы ожидания совпали с результатом.</p>
                 </article>
+                <article>
+                  <strong>Согласуем перед отправкой</strong>
+                  <p>Покажем собранный букет и уточним детали до передачи курьеру.</p>
+                </article>
               </div>
             </div>
             <div className="landing-visual">
@@ -537,7 +566,7 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
                   <span>Пример результата</span>
                   <strong>Flower ID</strong>
                 </div>
-                <div className="preview-photo" aria-hidden="true" />
+              <div className="preview-photo" role="img" aria-label="Пример нежного букета в стиле мягкий минимализм" />
                 <div className="preview-card-body">
                   <p className="preview-name">Анна — Мягкий минимализм</p>
                   <h2>Профиль, который легко отправить близким</h2>
@@ -558,7 +587,7 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
                   <div className="preview-mini-grid">
                     <div className="preview-section">
                       <strong>Подходит</strong>
-                      <p>ранункулюсы · анемоны · фрезия</p>
+                      <p>лютики-ранункулюсы · анемоны с тёмной серединкой · фрезия</p>
                     </div>
                     <div className="preview-section">
                       <strong>Не дарить</strong>
@@ -566,6 +595,7 @@ function LandingPage({ navigate, startQuiz }: { navigate: (url: string) => void;
                     </div>
                   </div>
                 </div>
+                <button className="secondary-button preview-create-button" onClick={start}>Создать свой такой же</button>
               </article>
             </div>
           </div>
@@ -584,6 +614,10 @@ const giftSteps: Array<{ id: GiftStep; label: string }> = [
   { id: "result", label: "Варианты" },
   { id: "final", label: "Telegram" },
 ];
+
+function isGiftStep(value?: string): value is GiftStep {
+  return giftSteps.some((step) => step.id === value);
+}
 
 const recipientOptions: GiftOption[] = [
   { id: "partner", label: "Девушке / жене" },
@@ -608,9 +642,9 @@ const avoidGiftOptions: GiftOption[] = [
   { id: "carnations", label: "Гвоздики" },
   { id: "dried", label: "Сухоцветы" },
   { id: "strong_scent", label: "Сильный аромат" },
-  { id: "too_bright", label: "Слишком яркие цвета" },
+  { id: "too_bright", label: "Кричащие цвета" },
   { id: "glitter", label: "Блёстки / стразы / декор" },
-  { id: "too_much_wrap", label: "Слишком много упаковки" },
+  { id: "too_much_wrap", label: "Много упаковки" },
   { id: "unknown", label: "Не знаю" },
 ];
 
@@ -695,14 +729,36 @@ function createEmptyGiftRequest(): GiftRequest {
     telegram_clicked: false,
     source: window.location.search || "direct",
     status: "created",
+    status_history: [{ status: "created", created_at: now, source: "gift_flow_started" }],
     last_step: "recipient",
   };
 }
 
+function patchGiftRequest(request: GiftRequest, patch: Partial<GiftRequest>, source: string): GiftRequest {
+  const now = new Date().toISOString();
+  const nextStatus = patch.status ?? request.status;
+  const statusHistory = request.status_history?.length
+    ? request.status_history
+    : [{ status: request.status, created_at: request.created_at, source: "legacy_request" }];
+  return {
+    ...request,
+    ...patch,
+    status: nextStatus,
+    updated_at: now,
+    status_history: nextStatus === request.status
+      ? statusHistory
+      : [...statusHistory, { status: nextStatus, created_at: now, source }],
+  };
+}
+
 function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
-  const [showIntro, setShowIntro] = useState(true);
-  const [step, setStep] = useState<GiftStep>("recipient");
-  const [request, setRequest] = useState<GiftRequest>(() => createEmptyGiftRequest());
+  const activeRequest = useMemo(() => {
+    const id = sessionStorage.getItem(activeGiftRequestKey);
+    return id ? loadGiftRequest(id) : null;
+  }, []);
+  const [showIntro, setShowIntro] = useState(!activeRequest);
+  const [step, setStep] = useState<GiftStep>(() => isGiftStep(activeRequest?.last_step) ? activeRequest.last_step : "recipient");
+  const [request, setRequest] = useState<GiftRequest>(() => activeRequest || createEmptyGiftRequest());
   const [showContactModal, setShowContactModal] = useState(false);
   const [telegramContact, setTelegramContact] = useState(request.telegram_contact || "");
   const [orderAccepted, setOrderAccepted] = useState(false);
@@ -728,18 +784,21 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
   }, [request.id, step]);
 
   const updateGiftRequest = (patch: Partial<GiftRequest>, nextStep?: GiftStep, eventName?: string) => {
-    const updated: GiftRequest = {
-      ...request,
+    const updated = patchGiftRequest(request, {
       ...patch,
-      updated_at: new Date().toISOString(),
+      status: patch.status ?? (request.status === "created" ? "in_progress" : request.status),
       last_step: nextStep ?? step,
-    };
+    }, eventName || "gift_request_updated");
     updated.recommended_style = patch.recommended_style ?? buildGiftRecommendation(updated).styleName;
     setRequest(updated);
     saveGiftRequest(updated);
     if (eventName) track(eventName, { giftRequestId: updated.id, ...patch });
     if (nextStep) setStep(nextStep);
   };
+
+  useEffect(() => {
+    if (activeRequest?.status === "created") updateGiftRequest({ status: "opened" }, undefined, "gift_request_reopened");
+  }, []);
 
   const startGiftFlow = () => {
     const next = createEmptyGiftRequest();
@@ -756,12 +815,11 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
 
   const chooseSingle = (field: keyof Pick<GiftRequest, "recipient_type" | "occasion" | "desired_effect" | "taste_knowledge" | "budget">, value: string, nextStep: GiftStep, eventName: string) => {
     if (field === "budget" && nextStep === "result") {
-      const updated: GiftRequest = {
-        ...request,
+      const updated = patchGiftRequest(request, {
         [field]: value,
-        updated_at: new Date().toISOString(),
+        status: "in_progress",
         last_step: "result",
-      };
+      }, eventName);
       updated.recommended_style = buildGiftRecommendation(updated).styleName;
       setRequest(updated);
       saveGiftRequest(updated);
@@ -777,6 +835,7 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
       selected_option: option.id,
       selected_card_text: option.description,
       recommended_style: recommendation.styleName,
+      status: "selected",
     }, "final", "bouquet_option_selected");
   };
 
@@ -788,14 +847,12 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
   const submitGiftContact = () => {
     const contact = telegramContact.trim();
     if (!contact) return;
-    const finalRequest = {
-      ...request,
+    const finalRequest = patchGiftRequest(request, {
       telegram_contact: contact,
       telegram_clicked: true,
       status: "telegram_clicked" as const,
-      updated_at: new Date().toISOString(),
       last_step: "final",
-    };
+    }, "contact_submitted");
     setRequest(finalRequest);
     saveGiftRequest(finalRequest);
     track("telegram_clicked", { giftRequestId: finalRequest.id, selectedOption: finalRequest.selected_option, budget: finalRequest.budget, contactProvided: true });
@@ -844,6 +901,10 @@ function GiftConciergePage({ navigate }: { navigate: (url: string) => void }) {
               <article>
                 <strong>Как на фото</strong>
                 <p>Перед отправкой согласуем внешний вид, чтобы ожидания совпали с результатом.</p>
+              </article>
+              <article>
+                <strong>Согласуем перед отправкой</strong>
+                <p>Покажем собранный букет и уточним детали до передачи курьеру.</p>
               </article>
             </div>
           </section>
@@ -1187,6 +1248,10 @@ function GiftRecommendationScreen({
     <section className="gift-result">
       <p className="eyebrow">Персональная рекомендация</p>
       <h1>3 варианта букета</h1>
+      <div className="gift-status-strip" aria-label="Статус заявки">
+        <strong>{giftRequestStatusCopy(options.length ? "options_ready" : request.status).title}</strong>
+        <span>{giftRequestStatusCopy(options.length ? "options_ready" : request.status).text}</span>
+      </div>
       <div className="gift-summary-row">
         <span>Кому: {giftRecipientLabel(request)}</span>
         <span>Повод: {giftOccasionLabel(request)}</span>
@@ -1198,7 +1263,7 @@ function GiftRecommendationScreen({
           <span>Заявка {request.id}</span>
           <h2>Мы подбираем 3 идеальных варианта</h2>
           <p>
-            Флорист посмотрит ответы, бюджет и повод. Скоро здесь появятся реальные букеты с фото, описанием, ценой и возможностью заказать.
+            Мы подберём 3 варианта и пришлём их сюда. Флорист посмотрит ответы, бюджет и повод, а затем здесь появятся реальные букеты с фото, описанием, ценой и возможностью заказать.
           </p>
           {onRefresh && <button className="secondary-button" onClick={onRefresh}>Проверить варианты</button>}
         </article>
@@ -1206,7 +1271,7 @@ function GiftRecommendationScreen({
         <div className="gift-bouquet-options">
           {options.map((option) => (
             <article className="gift-bouquet-card" key={option.id}>
-              <div className="gift-bouquet-image" style={{ backgroundImage: `url(${option.image})` }} />
+              <img className="gift-bouquet-image" src={option.image} alt={option.alt || `Букет ${option.title}`} loading="lazy" />
               <span>{option.price}</span>
               <h2>{option.title}</h2>
               <p>{option.description}</p>
@@ -1233,12 +1298,13 @@ function GiftFinalScreen({
   orderAccepted: boolean;
 }) {
   const image = selectedOption?.image || recommendation.image;
+  const imageAlt = selectedOption?.alt || selectedOption?.title || recommendation.styleName;
   return (
     <section className="gift-final">
       <p className="eyebrow">Заказ готов</p>
       <h1>Всё готово</h1>
       <article className="gift-final-card">
-        <div className="gift-final-image" style={{ backgroundImage: `url(${image})` }} aria-hidden="true" />
+        <img className="gift-final-image" src={image} alt={`Выбранный букет: ${imageAlt}`} />
         <h2>{selectedOption?.title || "Персональный вариант Flower ID"}</h2>
         <p>{selectedOption?.price || giftLabel(budgetOptions, request.budget)}</p>
         <dl>
@@ -1248,14 +1314,14 @@ function GiftFinalScreen({
           <div><dt>Стиль</dt><dd>{recommendation.styleName}</dd></div>
         </dl>
       </article>
-      <p className="lead">Дальше мы уточним адрес и время доставки в Telegram. Перед отправкой вы получите фото готового букета на согласование.</p>
+      <p className="lead">Дальше мы свяжемся удобным способом, уточним адрес и время доставки. Перед отправкой вы получите фото готового букета на согласование.</p>
       {orderAccepted && (
         <div className="gift-accepted-note">
           <strong>Заказ принят</strong>
-          <span>Мы свяжемся с вами в Telegram, уточним детали и подготовим 3 подходящих варианта.</span>
+          <span>Мы свяжемся по оставленному контакту, уточним детали и согласуем заказ.</span>
         </div>
       )}
-      <button className="primary-button" onClick={onTelegram}>{orderAccepted ? "Изменить контакт" : "Оставить контакт в Telegram"}</button>
+      <button className="primary-button" onClick={onTelegram}>{orderAccepted ? "Изменить контакт" : "Оставить контакт для заказа"}</button>
     </section>
   );
 }
@@ -1266,14 +1332,14 @@ function GiftContactModal({ value, onChange, onClose, onSubmit }: { value: strin
       <section className="gift-contact-modal" role="dialog" aria-modal="true" aria-labelledby="gift-contact-title" onMouseDown={(event) => event.stopPropagation()}>
         <button className="gift-contact-close" type="button" onClick={onClose}>Закрыть</button>
         <p className="eyebrow">Контакт для заказа</p>
-        <h2 id="gift-contact-title">Куда написать в Telegram?</h2>
-        <p>Оставьте @username или номер телефона. Мы напишем вам, уточним детали доставки и подготовим варианты букета.</p>
+        <h2 id="gift-contact-title">Как с вами связаться?</h2>
+        <p>Оставьте Telegram, телефон или email. Мы свяжемся удобным способом, уточним доставку и согласуем заказ.</p>
         <label>
-          Telegram или телефон
+          Telegram, телефон или email
           <input
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            placeholder="@username или +7..."
+            placeholder="@username, +7... или name@example.com"
             autoFocus
           />
         </label>
@@ -1301,6 +1367,7 @@ function GiftRequestPage({ requestId, navigate }: { requestId: string; navigate:
 
   useEffect(() => {
     track("gift_request_viewed", { giftRequestId: requestId });
+    track("gift_request_status_viewed", { giftRequestId: requestId, status: request?.status || "loading" });
     refresh();
   }, [requestId]);
 
@@ -1314,15 +1381,25 @@ function GiftRequestPage({ requestId, navigate }: { requestId: string; navigate:
     return () => window.clearInterval(timer);
   }, [requestId, options.length]);
 
+  useEffect(() => {
+    if (!request || options.length === 0 || request.selected_option || request.status === "options_ready" || request.status === "telegram_clicked") return;
+    const updated = patchGiftRequest(request, {
+      status: "options_ready",
+      last_step: "result",
+    }, "options_ready_viewed");
+    setRequest(updated);
+    saveGiftRequest(updated);
+    track("gift_options_ready_viewed", { giftRequestId: requestId, optionCount: options.length });
+  }, [options.length, request?.id]);
+
   const chooseOption = (option: GiftBouquetOption) => {
     if (!request) return;
-    const updated: GiftRequest = {
-      ...request,
+    const updated = patchGiftRequest(request, {
       selected_option: option.id,
       selected_card_text: option.description,
-      updated_at: new Date().toISOString(),
+      status: "selected",
       last_step: "final",
-    };
+    }, "bouquet_option_selected");
     setRequest(updated);
     saveGiftRequest(updated);
     track("bouquet_option_selected", { giftRequestId: updated.id, selected_option: option.id });
@@ -1332,14 +1409,12 @@ function GiftRequestPage({ requestId, navigate }: { requestId: string; navigate:
     if (!request) return;
     const contact = telegramContact.trim();
     if (!contact) return;
-    const updated: GiftRequest = {
-      ...request,
+    const updated = patchGiftRequest(request, {
       telegram_contact: contact,
       telegram_clicked: true,
       status: "telegram_clicked",
-      updated_at: new Date().toISOString(),
       last_step: "final",
-    };
+    }, "contact_submitted");
     setRequest(updated);
     saveGiftRequest(updated);
     track("telegram_clicked", { giftRequestId: updated.id, selectedOption: updated.selected_option, budget: updated.budget, contactProvided: true });
@@ -1390,7 +1465,7 @@ function GiftRequestPage({ requestId, navigate }: { requestId: string; navigate:
             />
           )}
           {selectedOption && <button className="text-button gift-back-inline" onClick={() => {
-            const updated = { ...request, selected_option: "", selected_card_text: "", updated_at: new Date().toISOString(), last_step: "result" };
+            const updated = patchGiftRequest(request, { status: "options_ready", selected_option: "", selected_card_text: "", last_step: "result" }, "selection_changed");
             setRequest(updated);
             saveGiftRequest(updated);
           }}>Выбрать другой вариант</button>}
@@ -1419,8 +1494,9 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
   const allGiftRequests = sortGiftRequests(Object.values(requests).filter(isMeaningfulGiftRequest));
   const giftRequestList = allGiftRequests.filter((request) => {
     const proposalCount = loadGiftBouquetOptions(request.id).length;
-    if (filter === "pending") return !proposalCount && !request.selected_option;
-    if (filter === "ready") return proposalCount > 0 && !request.selected_option;
+    const optionsReady = proposalCount > 0 || request.status === "options_ready";
+    if (filter === "pending") return !optionsReady && !request.selected_option;
+    if (filter === "ready") return optionsReady && !request.selected_option;
     if (filter === "selected") return Boolean(request.selected_option);
     return true;
   });
@@ -1458,6 +1534,14 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
   useEffect(() => {
     setOptions(createAdminBouquetDrafts(requestId));
     setSaveMessage("");
+    if (!requestId) return;
+    let alive = true;
+    syncGiftBouquetOptions(requestId).then((syncedOptions) => {
+      if (alive && syncedOptions.length) setOptions(syncedOptions);
+    });
+    return () => {
+      alive = false;
+    };
   }, [requestId]);
 
   const updateOption = (index: number, patch: Partial<GiftBouquetOption>) => {
@@ -1487,6 +1571,7 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
       ...option,
       id: option.id || `proposal_${index + 1}`,
       gift_request_id: requestId,
+      alt: option.alt || `Букет ${option.title || `вариант ${index + 1}`} для заявки Flower ID`,
       cta: option.cta || "Заказать этот букет",
       created_at: option.created_at || now,
       updated_at: now,
@@ -1498,6 +1583,11 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
     }
     try {
       saveGiftBouquetOptions(requestId, readyOptions);
+      if (selectedRequest && !["telegram_clicked", "ordered", "completed", "cancelled"].includes(selectedRequest.status)) {
+        const updatedRequest = patchGiftRequest(selectedRequest, { status: "options_ready", last_step: "result" }, "admin_saved_options");
+        setRequests((current) => ({ ...current, [updatedRequest.id]: updatedRequest }));
+        saveGiftRequest(updatedRequest);
+      }
       flushCollectorQueue();
       track("gift_bouquets_saved", { giftRequestId: requestId, count: readyOptions.length });
       setOptions(readyOptions.length ? readyOptions : createAdminBouquetDrafts(requestId));
@@ -1507,6 +1597,16 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
     } catch (error) {
       setSaveMessage(`Не удалось сохранить варианты. Попробуйте фото меньшего размера. ${String(error)}`);
     }
+  };
+
+  const updateAdminStatus = (status: GiftRequest["status"]) => {
+    if (!selectedRequest) return;
+    const updatedRequest = patchGiftRequest(selectedRequest, { status }, "admin_status_changed");
+    setRequests((current) => ({ ...current, [updatedRequest.id]: updatedRequest }));
+    saveGiftRequest(updatedRequest);
+    flushCollectorQueue();
+    track("gift_request_admin_status_changed", { giftRequestId: updatedRequest.id, status });
+    setSaveMessage(`Статус обновлён: ${giftRequestStatusCopy(status).title}.`);
   };
 
   return (
@@ -1538,7 +1638,7 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
               {giftRequestList.length === 0 && <p className="gift-admin-empty">В этом статусе пока нет заявок.</p>}
               {giftRequestList.map((request) => {
                 const proposalCount = loadGiftBouquetOptions(request.id).length;
-                const statusLabel = request.selected_option ? "Клиент выбрал" : proposalCount ? "Варианты добавлены" : "Ждёт варианты";
+                const statusLabel = request.selected_option ? "Клиент выбрал" : proposalCount || request.status === "options_ready" ? "Варианты готовы" : giftRequestStatusCopy(request.status).title;
                 return (
                   <button
                     className={`gift-admin-request ${request.id === requestId ? "selected" : ""}`}
@@ -1559,15 +1659,38 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
                 <input value={requestId} onChange={(event) => setRequestId(event.target.value)} placeholder="gift_..." />
               </label>
               {selectedRequest && (
-                <article className="gift-admin-brief">
-                  <strong>Бриф</strong>
-                  <span>Кому: {giftRecipientLabel(selectedRequest)}</span>
-                  <span>Повод: {giftOccasionLabel(selectedRequest)}</span>
-                  <span>Эффект: {giftEffectLabel(selectedRequest)}</span>
-                  <span>Бюджет: {giftLabel(budgetOptions, selectedRequest.budget) || "не выбран"}</span>
-                  {selectedRequest.telegram_contact && <span>Контакт: {selectedRequest.telegram_contact}</span>}
-                  {selectedRequest.taste_note && <span>Вкус: {selectedRequest.taste_note}</span>}
-                </article>
+                <>
+                  <article className="gift-admin-brief">
+                    <strong>Бриф</strong>
+                    <span>Кому: {giftRecipientLabel(selectedRequest)}</span>
+                    <span>Повод: {giftOccasionLabel(selectedRequest)}</span>
+                    <span>Эффект: {giftEffectLabel(selectedRequest)}</span>
+                    <span>Бюджет: {giftLabel(budgetOptions, selectedRequest.budget) || "не выбран"}</span>
+                    {selectedRequest.telegram_contact && <span>Контакт: {selectedRequest.telegram_contact}</span>}
+                    {selectedRequest.taste_note && <span>Вкус: {selectedRequest.taste_note}</span>}
+                  </article>
+                  <article className="gift-admin-status-panel">
+                    <strong>Статус заявки</strong>
+                    <div className="gift-admin-status-actions">
+                      {(["options_ready", "selected", "ordered", "completed", "cancelled"] as GiftRequest["status"][]).map((status) => (
+                        <button className={selectedRequest.status === status ? "active" : ""} key={status} onClick={() => updateAdminStatus(status)}>
+                          {giftRequestStatusCopy(status).title}
+                        </button>
+                      ))}
+                    </div>
+                  </article>
+                  <article className="gift-admin-history">
+                    <strong>История обновлений</strong>
+                    {(selectedRequest.status_history?.length
+                      ? selectedRequest.status_history
+                      : [{ status: selectedRequest.status, created_at: selectedRequest.updated_at || selectedRequest.created_at, source: "legacy_request" }]
+                    ).map((item, index) => (
+                      <span key={`${item.created_at}-${index}`}>
+                        {formatDateTime(item.created_at)} · {giftRequestStatusCopy(item.status).title}
+                      </span>
+                    ))}
+                  </article>
+                </>
               )}
               {selectedOption && (
                 <article className="gift-admin-choice">
@@ -1579,7 +1702,7 @@ function GiftAdminPage({ navigate }: { navigate: (url: string) => void }) {
                 {options.map((option, index) => (
                   <article className="gift-admin-card" key={option.id || index}>
                     <strong>Вариант {index + 1}</strong>
-                    {option.image && <div className="gift-admin-photo-preview" style={{ backgroundImage: `url(${option.image})` }} />}
+                    {option.image && <img className="gift-admin-photo-preview" src={option.image} alt={option.alt || `Фото варианта ${index + 1}`} />}
                     <label>
                       Фото букета
                       <input type="file" accept="image/*" onChange={(event) => attachPhoto(index, event.target.files?.[0] || null)} />
@@ -1813,6 +1936,21 @@ function giftEffectLabel(request: GiftRequest) {
   return giftLabel(getEffectOptions(request), request.desired_effect);
 }
 
+function giftRequestStatusCopy(status: GiftRequest["status"]) {
+  const map = {
+    created: { title: "Заявка создана", text: "Ответьте на вопросы, чтобы флорист получил понятный бриф." },
+    opened: { title: "Заявка открыта", text: "Можно продолжить подбор с того места, где вы остановились." },
+    in_progress: { title: "Бриф собирается", text: "Мы сохраняем ответы и подготовим заявку для флориста." },
+    options_ready: { title: "Варианты готовы", text: "Можно выбрать букет, который подходит лучше всего." },
+    selected: { title: "Клиент выбрал", text: "Выбранный вариант сохранён, осталось оставить контакт." },
+    telegram_clicked: { title: "Заказ принят", text: "Контакт получен. Мы свяжемся и уточним детали доставки." },
+    ordered: { title: "Заказ оформляется", text: "Флорист готовит заказ и согласует детали." },
+    completed: { title: "Заказ завершён", text: "Букет передан в доставку или уже получен." },
+    cancelled: { title: "Заявка отменена", text: "По этой заявке работа остановлена." },
+  } satisfies Record<GiftRequest["status"], { title: string; text: string }>;
+  return map[status];
+}
+
 function getOccasionOptions(recipientType: string): GiftOption[] {
   const common = [
     { id: "just_because", label: "Просто порадовать" },
@@ -1968,9 +2106,9 @@ function MyFlowerIdPage({ navigate, startQuiz }: { navigate: (url: string) => vo
 
   const copy = async (submission: FlowerSubmission) => {
     const link = createPublicLink(submission.answers, submission.computed_profile, submission.id);
-    await navigator.clipboard.writeText(link);
+    const copied = await copyToClipboard(link);
     track("saved_flower_id_link_copied", { submissionId: submission.id });
-    setToast("Ссылка скопирована");
+    setToast(copied ? "Ссылка скопирована" : "Не удалось скопировать ссылку");
     window.setTimeout(() => setToast(""), 2200);
   };
 
@@ -2399,11 +2537,112 @@ function EmptyState({ title, text, action, onAction }: { title: string; text: st
   return (
     <main className="app-shell">
       <section className="quiz-frame">
+        <Header step={0} onBack={onAction} />
         <section className="screen hero-screen">
           <p className="eyebrow">Flower ID</p>
           <h1>{title}</h1>
           <p className="lead">{text}</p>
           <button className="primary-button" onClick={onAction}>{action}</button>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function ResumeQuizPage({ token, navigate }: { token: string; navigate: (url: string) => void }) {
+  const progress = useMemo(() => decodeQuizProgress(token), [token]);
+
+  const resume = () => {
+    if (!progress) return;
+    saveAnswers(progress.answers);
+    saveStep(progress.step);
+    sessionStorage.setItem(activeQuizKey, "1");
+    track("quiz_resumed_from_link", { step: progress.step });
+    navigate("/");
+  };
+
+  if (!progress) {
+    return <EmptyState title="Ссылка продолжения устарела" text="Не удалось восстановить прогресс. Можно начать новый Flower ID." action="Создать Flower ID" onAction={() => navigate("/")} />;
+  }
+
+  return (
+    <main className="app-shell">
+      <section className="quiz-frame">
+        <Header step={0} onBack={() => navigate("/")} note="прогресс сохранён" />
+        <section className="screen hero-screen">
+          <p className="eyebrow">Продолжить Flower ID</p>
+          <h1>Ваш прогресс готов</h1>
+          <p className="lead">Откройте сохранённый квиз и продолжите с шага {progress.step} из 7.</p>
+          <div className="action-stack">
+            <button className="primary-button" onClick={resume}>Продолжить квиз</button>
+            <button className="secondary-button" onClick={() => navigate("/")}>На главную</button>
+          </div>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function NotFoundPage({ navigate }: { navigate: (url: string) => void }) {
+  useEffect(() => {
+    track("not_found_viewed", { path: window.location.pathname });
+  }, []);
+
+  return (
+    <main className="app-shell">
+      <section className="quiz-frame">
+        <Header step={0} onBack={() => navigate("/")} />
+        <section className="screen hero-screen">
+          <p className="eyebrow">Страница не найдена</p>
+          <h1>Такой страницы нет</h1>
+          <p className="lead">Возможно, ссылка устарела или была скопирована не полностью. Можно вернуться на главную и выбрать нужный сценарий.</p>
+          <div className="action-stack">
+            <button className="primary-button" onClick={() => navigate("/")}>На главную</button>
+            <button className="secondary-button" onClick={() => {
+              navigate("/?create=1");
+            }}>Создать Flower ID</button>
+          </div>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function HowItWorksPage({ navigate }: { navigate: (url: string) => void }) {
+  const steps = [
+    ["01", "Создать Flower ID", "Человек проходит короткий квиз: визуальный вкус, настроение, палитра, любимые цветы, аромат и упаковка."],
+    ["02", "Подобрать букет", "Даритель отвечает на несколько вопросов о получателе, поводе и бюджете. Флорист получает понятный бриф."],
+    ["03", "Получить реальные варианты", "В заявке появляются 3 букета с фото, ценой и описанием. Перед отправкой внешний вид согласуется."],
+    ["04", "Оформить доставку", "Адрес, время и детали спокойно уточняются в Telegram или по оставленному контакту."],
+  ];
+
+  return (
+    <main className="app-shell">
+      <section className="quiz-frame">
+        <Header step={0} onBack={() => navigate("/")} note="как это работает" />
+        <section className="screen how-screen">
+          <p className="eyebrow">Flower ID</p>
+          <h1>Как это работает</h1>
+          <p className="lead">Flower ID не заставляет выбирать букет из каталога. Сервис помогает понять вкус человека, собрать понятный бриф и получить уместные варианты от флориста.</p>
+          <div className="how-steps">
+            {steps.map(([number, title, text]) => (
+              <article key={number}>
+                <span>{number}</span>
+                <h2>{title}</h2>
+                <p>{text}</p>
+              </article>
+            ))}
+          </div>
+          <div className="landing-guarantees">
+            <article><strong>Свежесть цветов</strong><p>Букет собирается перед доставкой из стойких сезонных цветов.</p></article>
+            <article><strong>Удобная доставка</strong><p>Адрес, время и детали уточняются до оформления.</p></article>
+            <article><strong>Как на фото</strong><p>Перед отправкой согласуем внешний вид, чтобы ожидания совпали с результатом.</p></article>
+            <article><strong>Согласуем перед отправкой</strong><p>Покажем собранный букет и уточним детали до передачи курьеру.</p></article>
+          </div>
+          <div className="action-stack">
+            <button className="primary-button" onClick={() => navigate("/gift")}>Подобрать букет</button>
+            <button className="secondary-button" onClick={() => navigate("/")}>На главную</button>
+          </div>
         </section>
       </section>
     </main>
@@ -2455,11 +2694,28 @@ function MetricsDebugPage({ navigate }: { navigate: (url: string) => void }) {
   );
 }
 
-function Header({ step, onBack, note = "2 минуты · без анкеты" }: { step: number; onBack: () => void; note?: string }) {
+function Header({
+  step,
+  onBack,
+  note = "2 минуты · без анкеты",
+  onCopyResume,
+}: {
+  step: number;
+  onBack: () => void;
+  note?: string;
+  onCopyResume?: () => void;
+}) {
   if (step === 0) {
     return (
       <header className="topbar start-topbar">
-        <span className="brand-mark">Flower ID</span>
+        <a className="brand-mark brand-link" href="/">Flower ID</a>
+        <nav className="global-nav" aria-label="Основная навигация">
+          <a href="/">Главная</a>
+          <a href="/?create=1">Создать Flower ID</a>
+          <a href="/gift">Подобрать букет</a>
+          <a href="/request">Запросить ID</a>
+          <a href="/my-flower-id">Мои ID</a>
+        </nav>
         <span className="start-topbar-note">{note}</span>
       </header>
     );
@@ -2479,7 +2735,28 @@ function Header({ step, onBack, note = "2 минуты · без анкеты" }
           <div className="progress-fill" style={{ width: `${(activeStep / quizStepLabels.length) * 100}%` }} />
         </div>
       </div>
-      <span className="step-count">{label}</span>
+      <div className="topbar-exit">
+        <span className="step-count">{label}</span>
+        {onCopyResume && <button type="button" onClick={onCopyResume}>Сохранить ссылку</button>}
+        <a href="/" onClick={() => {
+          sessionStorage.removeItem(activeQuizKey);
+          track("quiz_exit_clicked", { step });
+        }}>На главную</a>
+      </div>
+    </header>
+  );
+}
+
+function ResultHeader({ navigate }: { navigate: (url: string) => void }) {
+  return (
+    <header className="result-brand-header">
+      <button className="brand-mark result-brand-button" onClick={() => navigate("/")}>Flower ID</button>
+      <nav className="result-nav" aria-label="Навигация результата">
+        <button onClick={() => navigate("/")}>На главную</button>
+        <button onClick={() => navigate("/?create=1")}>Создать Flower ID</button>
+        <button onClick={() => navigate("/gift")}>Подобрать букет</button>
+        <button onClick={() => navigate("/my-flower-id")}>Мои ID</button>
+      </nav>
     </header>
   );
 }
@@ -2490,11 +2767,11 @@ function StartScreen({ onStart, onReset }: { onStart: () => void; onReset: () =>
   }, []);
 
   const intakeSteps = [
-    ["01", "Визуальный вкус", "Свайпы букетов быстро отделяют «мое» от «точно нет»."],
-    ["02", "Палитра и цветы", "Любимые оттенки, спорные сочетания и личный стоп-лист."],
+    ["01", "Визуальный вкус", "Оценки букетов быстро отделяют «мое» от «точно нет»."],
+    ["02", "Палитра и цветы", "Любимые оттенки, спорные сочетания и список того, что лучше не дарить."],
     ["03", "Флористический бриф", "Итог можно отправить флористу или человеку, который выбирает подарок."],
   ];
-  const profileParts = ["палитры", "любимые цветы", "стоп-лист", "аромат", "подача", "формат"];
+  const profileParts = ["палитры", "любимые цветы", "что не дарить", "аромат", "подача", "формат"];
   const scenarios = [
     "Перед заказом букета",
     "Чтобы подсказать близким",
@@ -2509,7 +2786,7 @@ function StartScreen({ onStart, onReset }: { onStart: () => void; onReset: () =>
           <h1>Соберите Flower ID за 3 минуты</h1>
           <p className="lead">
             Мини-тест превращает реакции на букеты, цвета и подачу в понятный Flower ID: что нравится,
-            чего избегать и как собрать букет, который попадет в человека.
+            чего избегать и как собрать букет, который попадет в человека. Близким будет проще выбрать без ошибки.
           </p>
           <div className="hero-actions">
             <button className="primary-button" onClick={onStart}>
@@ -2532,7 +2809,7 @@ function StartScreen({ onStart, onReset }: { onStart: () => void; onReset: () =>
         <h2>Букеты часто выбирают по памяти, а не по вкусу</h2>
         <p className="hint">
           Flower ID собирает не абстрактное «люблю розы», а рабочий профиль: настроение, цвет, фактуру,
-          аллергии, стоп-лист и формат подачи.
+          аллергии, список того, что лучше не дарить, и формат подачи.
         </p>
       </div>
 
@@ -2558,7 +2835,7 @@ function StartScreen({ onStart, onReset }: { onStart: () => void; onReset: () =>
             <span className="preview-label">Flower ID</span>
             <h2>Садовая романтика с мягкой палитрой</h2>
             <p>
-              Нежные оттенки, свободная форма, пионы и ранункулюсы. Без резкого аромата,
+              Нежные оттенки, свободная форма, пионы и лютики-ранункулюсы. Без резкого аромата,
               кислотных цветов и глянцевой упаковки.
             </p>
           </div>
@@ -2581,13 +2858,13 @@ function StartScreen({ onStart, onReset }: { onStart: () => void; onReset: () =>
 
       <div className="result-teaser">
         <span>Финал</span>
-        <p>Готовый портрет можно скопировать, поделиться ссылкой или превратить в ТЗ для флориста.</p>
+        <p>Готовый портрет можно отправить близким или превратить в понятный бриф для флориста.</p>
       </div>
 
       <button className="primary-button final-start" onClick={onStart}>
         Начать сбор Flower ID
       </button>
-      <span className="time-note">Займет около 3 минут · можно пройти с телефона</span>
+      <span className="time-note">2–3 минуты · без регистрации · результатом можно поделиться</span>
       <button className="text-button" onClick={onReset}>
         Сбросить сохраненный прогресс
       </button>
@@ -2851,15 +3128,15 @@ function PracticalScreen({
     });
   };
   const stopOptions: Option[] = [
-    { id: "too_bright", label: "Слишком яркие букеты" },
-    { id: "too_colorful", label: "Слишком пёстрые букеты" },
+    { id: "too_bright", label: "Кричащие цвета" },
+    { id: "too_colorful", label: "Пёстрая гамма" },
     { id: "red_roses", label: "Красные розы" },
     { id: "too_much_wrap", label: "Много упаковки" },
     { id: "sparkles", label: "Блёстки, стразы, декор" },
     { id: "strong_scent", label: "Сильный аромат" },
     { id: "lily", label: "Лилии" },
-    { id: "too_large", label: "Слишком большие букеты" },
-    { id: "too_simple", label: "Слишком простые букеты" },
+    { id: "too_large", label: "Крупный формат" },
+    { id: "too_simple", label: "Простая композиция" },
     { id: "no_hard_bans", label: "Нет жёстких запретов" },
   ];
   const allergyChoices: Option[] = [
@@ -2902,12 +3179,15 @@ function PracticalScreen({
       </div>
       <FieldSet title="Есть аллергии или чувствительность к запахам?" options={allergyChoices} selected={answers.allergies.kind} onSelect={setAllergy} />
       {answers.allergies.has_allergy && (
-        <textarea
-          className="text-area"
-          placeholder="Напиши, чего точно избегать"
-          value={answers.allergies.comment}
-          onChange={(event) => onChange({ allergies: { ...answers.allergies, comment: event.target.value } })}
-        />
+        <label className="inline-field-label">
+          Что точно исключить
+          <textarea
+            className="text-area"
+            placeholder="Например: лилии, сильный аромат"
+            value={answers.allergies.comment}
+            onChange={(event) => onChange({ allergies: { ...answers.allergies, comment: event.target.value } })}
+          />
+        </label>
       )}
     </section>
   );
@@ -3243,9 +3523,9 @@ function ResultScreen({
   const resultUrl = submissionId ? `${window.location.origin}/result/${submissionId}` : window.location.href;
 
   const copy = async (text: string, eventName: string) => {
-    await navigator.clipboard.writeText(text);
+    const copied = await copyToClipboard(text);
     track(eventName, { submissionId, archetype: profile.primary_archetype, view: resultView });
-    onToast("Скопировано");
+    onToast(copied ? "Скопировано" : "Не удалось скопировать");
   };
 
   const share = async () => {
@@ -3275,10 +3555,7 @@ function ResultScreen({
 
   return (
     <section className="screen result-screen premium-result-screen">
-      <header className="result-brand-header">
-        <span className="brand-mark">Flower ID</span>
-        <span>для букетов без ошибок</span>
-      </header>
+      <ResultHeader navigate={navigate} />
 
       {requestId && context === "own" && (
         <article className="message-card result-ready-note">
@@ -3291,8 +3568,8 @@ function ResultScreen({
         name={name}
         archetypeName={defaults.name}
         title={isShared ? `Flower ID ${name}` : "Твой Flower ID готов"}
-        subtitle={isShared ? `Теперь понятно, какие букеты действительно подходят для ${name}.` : "Теперь близким проще выбрать букет, который действительно тебе подходит."}
-        description={isShared ? makePublicResultText(resultData.description) : resultData.description}
+        subtitle={isShared ? `Теперь понятно, какие букеты подойдут получателю Flower ID: ${name}.` : "Теперь близким проще выбрать букет, который действительно тебе подходит."}
+        description={isShared ? makePublicResultText(resultData.description, name) : resultData.description}
         tags={resultData.tags}
         submissionId={submissionId}
       />
@@ -3384,24 +3661,22 @@ function ArchetypeVisualReferences({ visuals, name, isShared }: { visuals: Arche
     <section className="result-section">
       <div className="result-section-heading">
         <p className="eyebrow">Визуальные референсы</p>
-        <h2>{isShared ? `Как выглядит стиль ${name}` : "Как выглядит твой стиль"}</h2>
+        <h2>{isShared ? `Как выглядит стиль профиля: ${name}` : "Как выглядит твой стиль"}</h2>
       </div>
       <div className="visual-reference-row">
         {visuals.map((visual, index) => (
           <article className="visual-reference-card" key={`${visual.title}-${index}`}>
-            <div
-              className="visual-reference-image"
-              style={
-                visual.image
-                  ? {
-                    backgroundImage: `url(${visual.image})`,
-                    backgroundPosition: visual.imagePosition ?? "center",
-                    backgroundSize: "cover",
-                  }
-                  : bouquetPhotoStyle(visual.spriteIndex)
-              }
-              aria-hidden="true"
-            />
+            {visual.image ? (
+              <img
+                className="visual-reference-image"
+                src={visual.image}
+                alt={`${visual.title}: ${visual.description}`}
+                loading="lazy"
+                style={{ objectPosition: visual.imagePosition ?? "center" }}
+              />
+            ) : (
+              <div className="visual-reference-image" style={bouquetPhotoStyle(visual.spriteIndex)} aria-hidden="true" />
+            )}
             <div>
               <h3>{visual.title}</h3>
               <p>{visual.description}</p>
@@ -3427,18 +3702,18 @@ function FlowerIdProfileCard({
 }) {
   return (
     <article className="flower-id-profile-card">
-      <ProfileSection title={isShared ? "Стиль Flower ID" : "Твой стиль"}>
-        <p>{isShared ? makePublicResultText(data.styleText) : data.styleText}</p>
+      <ProfileSection title={isShared ? `Стиль профиля: ${name}` : "Твой стиль"}>
+        <p>{isShared ? makePublicResultText(data.styleText, name) : data.styleText}</p>
         <div className="result-style-tags compact">
           {data.tags.map((tag) => <span key={tag}>{tag}</span>)}
         </div>
       </ProfileSection>
 
-      <ProfileSection title={isShared ? "Палитра Flower ID" : "Твоя палитра"}>
+      <ProfileSection title={isShared ? "Палитра профиля" : "Твоя палитра"}>
         <PaletteSwatches palette={data.palette} />
       </ProfileSection>
 
-      <ProfileSection title={isShared ? "Подойдут к этому Flower ID" : "Тебе подойдут"}>
+      <ProfileSection title={isShared ? "Подходящие цветы" : "Тебе подойдут"}>
         <ChipList items={data.flowers} fallback="Флорист подберёт цветы по выбранному стилю." />
       </ProfileSection>
 
@@ -3608,23 +3883,25 @@ function ResultFeedback({
   );
 }
 
-function makePublicResultText(text: string) {
+function makePublicResultText(text: string, name = "Получателю") {
   return text
-    .replace(/^Вам ближе букеты, которые /, "Ближе букеты, которые ")
-    .replace(/^Вам ближе /, "Ближе ")
-    .replace(/^Вам подходят /, "Подходят ")
-    .replace(/^Вам подходит /, "Подходит ")
-    .replace(/^Вам близка /, "Близка ")
-    .replace(/^Вам нужен /, "Нужен ")
-    .replace(/^Ваш идеальный букет /, "Идеальный букет ")
-    .replace(/^Ваш стиль про /, "Стиль про ")
-    .replace(/^Ваш стиль /, "Стиль ")
-    .replace(/^Ваш букет /, "Букет ")
+    .replace(/^Вам ближе букеты, которые /, "В профиле особенно близки букеты, которые ")
+    .replace(/^Вам ближе /, "В профиле особенно близки ")
+    .replace(/^Вам подходят /, "Для этого профиля подходят ")
+    .replace(/^Вам подходит /, "Для этого профиля подходит ")
+    .replace(/^Вам близка /, "Для этого профиля близка ")
+    .replace(/^Вам нужен /, "Для этого профиля нужен ")
+    .replace(/^Ваш идеальный букет /, "Идеальный букет для этого профиля ")
+    .replace(/^Ваш стиль про /, "Этот стиль — про ")
+    .replace(/^Ваш стиль /, "Этот стиль ")
+    .replace(/^Ваш букет /, "Подходящий букет ")
     .replace(/^Вы выбираете сдержанную красоту/, "В профиле — сдержанная красота")
-    .replace(/\bВам\b/g, "Получателю")
-    .replace(/\bвам\b/g, "получателю")
-    .replace(/\bВаш\b/g, "Этот")
-    .replace(/\bваш\b/g, "этот");
+    .replace(/Вам/g, "Владельцу Flower ID")
+    .replace(/вам/g, "владельцу Flower ID")
+    .replace(/Ваш стиль про/g, "Этот стиль — про")
+    .replace(/Ваш/g, "Этот")
+    .replace(/ваш/g, "этот")
+    .concat(name ? ` Профиль: ${name}.` : "");
 }
 
 function PublicOrderPanel({
@@ -3754,7 +4031,7 @@ function OrderFields({ draft, onChange }: { draft: OrderDraft; onChange: (draft:
       <label>Когда нужен букет<input value={draft.deliveryDate} placeholder="Сегодня вечером, 24 мая к 18:00" onChange={(event) => onChange({ ...draft, deliveryDate: event.target.value })} /></label>
       <label>Доставка или самовывоз<input value={draft.deliveryDetails} placeholder="Адрес, район или самовывоз" onChange={(event) => onChange({ ...draft, deliveryDetails: event.target.value })} /></label>
       <label>Ваше имя<input value={draft.senderName} placeholder="Сергей" onChange={(event) => onChange({ ...draft, senderName: event.target.value })} /></label>
-      <label>Контакт для связи<input value={draft.senderContact} placeholder="@telegram или телефон" onChange={(event) => onChange({ ...draft, senderContact: event.target.value })} /></label>
+      <label>Контакт для связи<input value={draft.senderContact} placeholder="@telegram, телефон или email" onChange={(event) => onChange({ ...draft, senderContact: event.target.value })} /></label>
       <label>Комментарий<textarea className="text-area" value={draft.comment} placeholder="Например: хочется нежно, без сильного аромата, доставка сюрпризом" onChange={(event) => onChange({ ...draft, comment: event.target.value })} /></label>
     </div>
   );
@@ -4089,6 +4366,26 @@ function createPublicLink(answers: Answers, profile: ReturnType<typeof computePr
   return `${window.location.origin}/p/${encodeBase64Url(JSON.stringify(payload))}`;
 }
 
+function encodeQuizProgress(progress: { answers: Answers; step: number }) {
+  return encodeBase64Url(JSON.stringify({
+    answers: progress.answers,
+    step: Math.min(Math.max(progress.step, 1), totalSteps - 1),
+  }));
+}
+
+function decodeQuizProgress(token: string): { answers: Answers; step: number } | null {
+  try {
+    const decoded = JSON.parse(decodeBase64Url(token)) as Partial<{ answers: Answers; step: number }>;
+    if (!decoded.answers || !Number.isFinite(decoded.step)) return null;
+    return {
+      answers: decoded.answers,
+      step: Math.min(Math.max(Number(decoded.step), 1), totalSteps - 1),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function readPublicPayload() {
   if (!window.location.pathname.startsWith("/p/")) return null;
   try {
@@ -4139,6 +4436,15 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
 }
 
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 function createId(prefix: string) {
   if ("crypto" in window && "randomUUID" in crypto) {
     return `${prefix}_${crypto.randomUUID()}`;
@@ -4153,7 +4459,26 @@ async function openShare(text: string, url: string, eventName: string) {
     await navigator.share({ title: "Flower ID", text, url });
     return;
   }
-  await navigator.clipboard.writeText(text);
+  await copyToClipboard(text);
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const field = document.createElement("textarea");
+    field.value = text;
+    field.setAttribute("readonly", "");
+    field.style.position = "fixed";
+    field.style.opacity = "0";
+    document.body.appendChild(field);
+    field.select();
+    const copied = document.execCommand("copy");
+    field.remove();
+    return copied;
+  }
 }
 
 function requestStatusCopy(status: FlowerRequest["status"]) {
@@ -4289,7 +4614,7 @@ async function openOrder(
     channel: "telegram_account",
     telegramAccount: "@flowerid_order",
   });
-  await navigator.clipboard?.writeText(prefilledMessage).catch(() => undefined);
+  await copyToClipboard(prefilledMessage);
   window.open(orderTelegramUrl, "_blank", "noopener,noreferrer");
 }
 

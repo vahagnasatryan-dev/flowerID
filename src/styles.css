@@ -1258,9 +1258,10 @@ button:disabled {
   --cream: #f8f4ef;
   --cream-deep: #e1dcd5;
   --ink: #241b16;
-  --muted: #7c746e;
+  --muted: #675f59;
   --line: rgba(41, 58, 34, 0.13);
   --paper: #fffaf6;
+  --ivory: #f7f3ef;
   --shadow: 0 24px 70px rgba(36, 27, 22, 0.11);
 }
 
@@ -3878,6 +3879,310 @@ body {
   .gift-bouquet-options,
   .gift-postcard-options {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Navigation, accessibility and status polish */
+.brand-link {
+  text-decoration: none;
+}
+
+.start-topbar {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px 14px;
+}
+
+.global-nav {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  scrollbar-width: none;
+}
+
+.global-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.global-nav a,
+.topbar-exit a,
+.topbar-exit button {
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.global-nav a {
+  padding: 9px 11px;
+  background: #f0ebe5;
+}
+
+.topbar-exit {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+
+.topbar-exit a,
+.topbar-exit button {
+  color: var(--burgundy);
+  font-size: 14px;
+}
+
+.topbar-exit button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-decoration: underline;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 3px solid rgba(82, 12, 21, 0.56);
+  outline-offset: 3px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #716862;
+  opacity: 1;
+}
+
+.cta-note,
+.time-note,
+.subtle,
+.result-disclaimer {
+  font-size: 14px;
+}
+
+.gift-app-shell {
+  background: var(--ivory);
+}
+
+.gift-status-strip {
+  display: grid;
+  gap: 5px;
+  border-radius: 22px;
+  background: #edf3ea;
+  padding: 14px 16px;
+}
+
+.gift-status-strip strong {
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 950;
+}
+
+.gift-status-strip span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.gift-bouquet-image,
+.gift-final-image,
+.gift-admin-photo-preview,
+.visual-reference-image {
+  display: block;
+  width: 100%;
+  object-fit: cover;
+}
+
+.gift-bouquet-image,
+.gift-final-image {
+  aspect-ratio: 1.2 / 1;
+}
+
+.gift-admin-photo-preview {
+  aspect-ratio: 1.25 / 1;
+}
+
+.visual-reference-image {
+  aspect-ratio: 4 / 5;
+}
+
+.how-screen {
+  display: grid;
+  gap: 18px;
+}
+
+.how-screen h1 {
+  margin-bottom: 0;
+}
+
+.how-steps {
+  display: grid;
+  gap: 10px;
+}
+
+.how-steps article {
+  display: grid;
+  gap: 7px;
+  border-radius: 24px;
+  background: #f2ede7;
+  padding: 16px;
+}
+
+.how-steps span {
+  color: var(--burgundy);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.how-steps h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.05;
+}
+
+.how-steps p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.42;
+}
+
+.inline-field-label {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.preview-create-button {
+  margin: 0 16px 16px;
+}
+
+.result-brand-button,
+.result-nav button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.result-brand-button {
+  padding: 0;
+}
+
+.result-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.result-nav button {
+  border-radius: 999px;
+  background: #f0ebe5;
+  color: var(--burgundy);
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.gift-admin-status-panel,
+.gift-admin-history {
+  display: grid;
+  gap: 10px;
+  border-radius: 20px;
+  background: #f2ede7;
+  padding: 14px;
+}
+
+.gift-admin-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.gift-admin-status-actions button {
+  border: 1px solid rgba(82, 12, 21, 0.16);
+  border-radius: 999px;
+  background: #fffaf6;
+  color: var(--burgundy);
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.gift-admin-status-actions button.active {
+  background: var(--burgundy);
+  color: #fffaf6;
+}
+
+.gift-admin-history span {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.gift-admin-filters button,
+.gift-admin-request em,
+.gift-admin-field,
+.gift-admin-card label,
+.gift-admin-diagnostics span,
+.gift-admin-sync-note,
+.gift-progress > span,
+.gift-bouquet-card span,
+.flower-id-pill,
+.preview-card-top span,
+.preview-card-top strong {
+  font-size: 14px;
+}
+
+.eyebrow,
+.step-count,
+.start-topbar-note,
+.card-step-count,
+.result-style-tags span,
+.preview-label,
+.preview-section strong,
+.gift-choice-card small,
+.gift-admin-request span,
+.gift-admin-saved,
+.request-progress span,
+.request-sync-note,
+.result-disclaimer,
+small {
+  font-size: 14px;
+}
+
+@media (max-width: 420px) {
+  .start-topbar {
+    padding: 16px 18px 4px;
+  }
+
+  .global-nav {
+    margin-inline: -2px;
+  }
+
+  .global-nav a {
+    font-size: 14px;
+    padding: 8px 10px;
+  }
+
+  .topbar {
+    grid-template-columns: 42px minmax(0, 1fr) 94px;
+  }
+
+  .gift-step-heading h1,
+  .gift-result h1,
+  .gift-final h1 {
+    font-size: clamp(2rem, 9vw, 2.65rem);
+  }
+
+  .gift-step-heading {
+    margin-bottom: 14px;
   }
 }
 

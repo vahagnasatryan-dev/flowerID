@@ -249,15 +249,15 @@ export const packagingOptions: Option[] = [
 ];
 
 export const packagingStopOptions: Option[] = [
-  { id: "too_bright", label: "Слишком яркие букеты" },
-  { id: "too_colorful", label: "Слишком пёстрые букеты" },
+  { id: "too_bright", label: "Кричащие цвета" },
+  { id: "too_colorful", label: "Пёстрая гамма" },
   { id: "red_roses", label: "Красные розы" },
   { id: "too_much_wrap", label: "Много упаковки" },
   { id: "sparkles", label: "Блёстки, стразы, декор" },
   { id: "strong_scent", label: "Сильный аромат" },
   { id: "lily", label: "Лилии" },
-  { id: "too_large", label: "Слишком большие букеты" },
-  { id: "too_simple", label: "Слишком простые букеты" },
+  { id: "too_large", label: "Крупный формат" },
+  { id: "too_simple", label: "Простая композиция" },
   { id: "no_hard_bans", label: "Нет жёстких запретов" },
 ];
 

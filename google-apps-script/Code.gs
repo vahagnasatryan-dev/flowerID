@@ -122,6 +122,7 @@ const SHEET_HEADERS = {
     "telegram_clicked",
     "source",
     "status",
+    "status_history",
     "last_step",
     "payload_json",
   ],
@@ -418,6 +419,7 @@ function appendGiftRequest(ss, record, receivedAt) {
     telegram_clicked: payload.telegram_clicked ? "TRUE" : "FALSE",
     source: payload.source || "",
     status: payload.status || "",
+    status_history: JSON.stringify(payload.status_history || []),
     last_step: payload.last_step || "",
     payload_json: JSON.stringify(payload),
   };

@@ -176,7 +176,12 @@ export interface GiftRequest {
   telegram_contact?: string;
   telegram_clicked: boolean;
   source: string;
-  status: "created" | "telegram_clicked" | "ordered" | "completed" | "cancelled";
+  status: "created" | "opened" | "in_progress" | "options_ready" | "selected" | "telegram_clicked" | "ordered" | "completed" | "cancelled";
+  status_history: Array<{
+    status: GiftRequest["status"];
+    created_at: string;
+    source: string;
+  }>;
   last_step: string;
 }
 
@@ -187,6 +192,7 @@ export interface GiftBouquetProposal {
   price: string;
   description: string;
   image: string;
+  alt?: string;
   cta: string;
   created_at: string;
   updated_at: string;
